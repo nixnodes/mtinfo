@@ -16,7 +16,7 @@ from mtinfo.tvmaze.tvmaze import (
     RESULT_TYPE_LOOKUP,
 
     SEARCH_MODE_SINGLE,
-    SEARCH_MODE_MULTI
+    SEARCH_MODE_MULTI,
 )
 
 logger = Logger(__name__)
@@ -102,7 +102,7 @@ def do_query(context, q = None, machine = False, **kwargs):
 def main():
     parser = argparse.ArgumentParser(
         conflict_handler = 'resolve',
-        #allow_abbrev = False
+        # allow_abbrev = False
     )
     _arg_parse_common(parser)
     _argparse(parser)
@@ -129,16 +129,16 @@ def main():
 
         if (a['l'] != None):
             do_query(
-                TLookupContext, 
-                q = qs, 
-                machine = a['machine'], 
+                TLookupContext,
+                q = qs,
+                machine = a['machine'],
                 mode = a['l'],
                 embed = 'episodes' if a['e'] else None
             )
         elif (a['p'] == True):
             do_query(
-                TPeopleContext, 
-                q = qs, 
+                TPeopleContext,
+                q = qs,
                 machine = a['machine']
             )
         else:

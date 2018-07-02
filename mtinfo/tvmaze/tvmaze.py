@@ -85,6 +85,10 @@ class TResultMulti():
         )
 
 
+class TBaseNotFoundException(Exception):
+    pass
+
+
 class TBase():
     URL = None
 
@@ -97,7 +101,10 @@ class TBase():
     def fetch(self, url = None):
         r = requests.get(url)
 
-        if (r.status_code != 200):
+        if r.status_code == 404:
+            raise TBaseNotFoundException('Not found')
+
+        if r.status_code != 200:
             raise Exception("Query failed: {}".format(r.status_code))
 
         return json.loads(r.text)
