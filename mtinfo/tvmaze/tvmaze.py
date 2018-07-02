@@ -12,48 +12,51 @@ RESULT_TYPE_EPISODES = 5
 
 class TResultBase():
 
+    def __init__(self, data):
+        if not isinstance(data, dict):
+            raise TypeError("TVMaze result expected dictionary")
+
+        self.data = data
+
     def __getitem__(self, key):
-        return self.data[key]
+        return self.data[key] if key in self.data else None
 
     def __str__(self):
         return str(self.data)
 
-    def __getattr__(self, name):
-        return self.data[name] if name in self.data else None
+    def __getattr__(self, key):
+        return self.data[key] if key in self.data else None
 
 
 class TResultGeneric(TResultBase):
 
     def __init__(self, data):
-        if not isinstance(data, dict):
-            raise TypeError("TVMaze show result expected dictionary")
 
-        self.data = data
+        TResultBase.__init__(self, data)
+
+        for k, v in data.items():
+            if isinstance(v, dict):
+                data[k] = TResultGeneric(v)
+            elif isinstance(v, list):
+                for i, _v in enumerate(v):
+                    if isinstance(_v, dict):
+                        v[i] = TResultGeneric(_v)
 
 
 class TResult(TResultBase):
 
     def __init__(self, data, restype = RESULT_TYPE_NORMAL):
-        if not isinstance(data, dict):
-            raise TypeError("TVMaze result expected dictionary")
 
-        if (restype == RESULT_TYPE_SEARCH or
-            restype == RESULT_TYPE_SCHEDULE):
-            self.show = TResultGeneric(data['show'])
-        elif restype == RESULT_TYPE_PERSON:
-            self.person = TResultGeneric(data['person'])
-        elif restype == RESULT_TYPE_LOOKUP:
-            self.show = TResultGeneric(data)
+        TResultGeneric.__init__(self, data)
 
-        if '_embedded' in data:
-            if 'episodes' in data['_embedded']:
-                self.episodes = TResultMulti(
-                    data['_embedded']['episodes'],
-                    RESULT_TYPE_EPISODES
-                )
+        if restype == RESULT_TYPE_LOOKUP:
+            self.show = TResultBase(data)
+
+        if self._embedded:
+            if self._embedded.episodes:
+                self.episodes = self._embedded.episodes
 
         self._restype = restype
-        self.data = data
 
 
 class TResultMulti():
