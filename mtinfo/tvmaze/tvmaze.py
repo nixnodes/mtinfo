@@ -34,13 +34,18 @@ class TResultGeneric(TResultBase):
 
         TResultBase.__init__(self, data)
 
+        def wrap_list_recursive(l):
+            for i, v in enumerate(l):
+                if isinstance(v, dict):
+                    l[i] = TResultGeneric(v)
+                elif isinstance(v, list):
+                    wrap_list_recursive(v)
+
         for k, v in data.items():
             if isinstance(v, dict):
                 data[k] = TResultGeneric(v)
             elif isinstance(v, list):
-                for i, _v in enumerate(v):
-                    if isinstance(_v, dict):
-                        v[i] = TResultGeneric(_v)
+                wrap_list_recursive(v)
 
 
 class TResult(TResultBase):
