@@ -102,7 +102,7 @@ def do_query(context, q = None, machine = False, **kwargs):
 def main():
     parser = argparse.ArgumentParser(
         conflict_handler = 'resolve',
-        allow_abbrev = False
+        #allow_abbrev = False
     )
     _arg_parse_common(parser)
     _argparse(parser)
