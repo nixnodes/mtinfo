@@ -10,22 +10,28 @@ RESULT_TYPE_LOOKUP = 4
 RESULT_TYPE_EPISODES = 5
 
 
+class TResultJSONEncoder(json.JSONEncoder):
+
+    def default(self, o):
+        return o._rawdata_
+
+
 class TResultBase():
 
     def __init__(self, data):
         if not isinstance(data, dict):
             raise TypeError("TVMaze result expected dictionary")
 
-        self.__data = data
+        self._rawdata_ = data
 
     def __getitem__(self, key):
-        return self.__data[key] if key in self.__data else None
+        return self._rawdata_[key] if key in self._rawdata_ else None
 
     def __str__(self):
-        return str(self.__data)
+        return str(self._rawdata_)
 
     def __getattr__(self, key):
-        return self.__data[key] if key in self.__data else None
+        return self._rawdata_[key] if key in self._rawdata_ else None
 
 
 class TResultGeneric(TResultBase):
@@ -57,7 +63,7 @@ class TResult(TResultBase):
         if restype == RESULT_TYPE_LOOKUP:
             self.show = self
 
-        self._restype = restype
+        self._restype_ = restype
 
         self.setup_convenience_shortcuts()
 
@@ -73,10 +79,7 @@ class TResult(TResultBase):
             self.network_country = self.webChannel.country
             self.network_name = self.webChannel.name
 
-        if self._embedded != None:
-            if self._embedded.episodes != None:
-                self.episodes = self._embedded.episodes
-        else:
+        if self._embedded == None:
             self._embedded = TResultBase({})
 
 

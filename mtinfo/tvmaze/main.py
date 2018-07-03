@@ -1,4 +1,4 @@
-import logging, argparse, json, datetime
+import logging, argparse, json
 
 from ..logging import set_loglevel, Logger
 from ..misc import strip_tags
@@ -9,6 +9,8 @@ from mtinfo.tvmaze.tvmaze import (
     TLookupContext,
     TScheduleContext,
     TPeopleContext,
+    TResultMulti,
+
     # RESULT_TYPE_NORMAL,
     RESULT_TYPE_SEARCH,
     RESULT_TYPE_PERSON ,
@@ -18,7 +20,9 @@ from mtinfo.tvmaze.tvmaze import (
     SEARCH_MODE_SINGLE,
     SEARCH_MODE_MULTI,
 
-    stamptodt
+    stamptodt,
+
+    TResultJSONEncoder
 )
 
 logger = Logger(__name__)
@@ -38,39 +42,39 @@ def _argparse(parser):
 
 def print_informative(r):
 
-    if (r._restype == RESULT_TYPE_SEARCH or
-         r._restype == RESULT_TYPE_LOOKUP):
+    if (r._restype_ == RESULT_TYPE_SEARCH or
+         r._restype_ == RESULT_TYPE_LOOKUP):
 
         print('{} ({}) - [{} - {}] - {}min | {}'.format(
             r.show.name,
             r.show.language,
             r.show.type,
-            '|'.join(r.show.genres) if len(r.show.genres) > 0 else 'Unknown',
+            '|'.join(r.show.genres) if r.show.genres  else 'Unknown',
             r.show.runtime,
             strip_tags(r.show.summary) if r.show.summary != None else 'None'
         ))
 
-        if r.episodes != None:
-            for v in r.episodes:
+        if r._embedded != None and r._embedded.episodes != None:
+            for v in r._embedded.episodes:
                 print('    {} | {} ({}x{})'.format(
                     stamptodt(v.airstamp).strftime("%d-%m-%Y %H:%M"),
                     v.name,
                     v.season, v.number
                 ))
 
-    elif (r._restype == RESULT_TYPE_PERSON):
+    elif (r._restype_ == RESULT_TYPE_PERSON):
         print('{} - {}'.format(
             r.person.name,
             r.person.url
         ))
-    elif (r._restype == RESULT_TYPE_SCHEDULE):
+    elif (r._restype_ == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
             stamptodt(r.airstamp).strftime("%d-%m-%Y %H:%M"),
             r.show.name,
             r.name,
             r.season, r.number,
             r.show.type,
-            '|'.join(r.show.genres) if len(r.show.genres) > 0 else 'Unknown',
+            '|'.join(r.show.genres) if r.show.genres else 'Unknown',
             r.runtime,
             strip_tags(r.summary) if r.summary != None else 'None'
         ))
@@ -82,16 +86,16 @@ def do_query(context, q = None, machine = False, **kwargs):
     r = context(**kwargs).query(q)
 
     if machine:
-        if isinstance(r.data, list):
+        if isinstance(r, TResultMulti):
             o = []
             for v in r.data:
-                o.append(v.data)
-            print(json.dumps(o, ensure_ascii = False))
+                o.append(v)
+            print(TResultJSONEncoder().encode(o))
         else:
-            print(json.dumps(r.data, ensure_ascii = False))
+            print(TResultJSONEncoder().encode(r))
     else:
-        if isinstance(r.data, list):
-            for v in r.data:
+        if isinstance(r, TResultMulti):
+            for v in r:
                 print_informative(v)
         else:
             print_informative(r)
