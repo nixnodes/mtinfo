@@ -68,8 +68,7 @@ class TResult(TResultBase):
                 self.network_country = self.network.country.name
                 self.network_name = self.network.name
         elif self.webChannel != None:
-            if self.webChannel.country != None:
-                self.network_country = self.webChannel.counry
+            self.network_country = self.webChannel.country
             self.network_name = self.webChannel.name
 
         if self._embedded != None:

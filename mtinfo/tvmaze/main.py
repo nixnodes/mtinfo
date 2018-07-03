@@ -53,7 +53,7 @@ def print_informative(r):
         if r.episodes != None:
             for v in r.episodes:
                 print('    {} | {} ({}x{})'.format(
-                    stamptodt(r['airstamp']).strftime("%d-%m-%Y %H:%M"),
+                    stamptodt(v.airstamp).strftime("%d-%m-%Y %H:%M"),
                     v.name,
                     v.season, v.number
                 ))
@@ -65,7 +65,7 @@ def print_informative(r):
         ))
     elif (r._restype == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            stamptodt(r['airstamp']).strftime("%d-%m-%Y %H:%M"),
+            stamptodt(r.airstamp).strftime("%d-%m-%Y %H:%M"),
             r.show.name,
             r.name,
             r.season, r.number,
