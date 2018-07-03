@@ -64,9 +64,11 @@ class TResult(TResultBase):
     def setup_convenience_shortcuts(self):
 
         if self.network != None:
+            self.network_name = self.network.name
             if self.network.country != None:
                 self.network_country = self.network.country.name
-                self.network_name = self.network.name
+                self.network_country_code = self.network.country.code
+
         elif self.webChannel != None:
             self.network_country = self.webChannel.country
             self.network_name = self.webChannel.name
