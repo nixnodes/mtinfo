@@ -133,6 +133,20 @@ SEARCH_MODE_SINGLE = 1
 SEARCH_MODE_MULTI = 2
 
 
+def generate_embed_query_param(d):
+    if isinstance(d, str):
+        return 'embed={}'.format(d)
+    elif isinstance(d, list):
+        o = ''
+        for i, v in enumerate(d):
+            o += 'embed[]={}'.format(v)
+            if i < len(d) - 1:
+                o += '&'
+        return o
+    else:
+        raise TypeError('Input can only be a string or list')
+
+
 class TSearchContext(TBase):
 
     def __init__(self, mode, embed = None, *args, **kwargs):
@@ -142,7 +156,8 @@ class TSearchContext(TBase):
             self.URL = BASEURL + "/singlesearch/shows?q={}"
 
             if embed != None:
-                self.URL += '&embed={}'.format(embed)
+                self.URL += '&' + generate_embed_query_param(embed)
+            print(self.URL)
         elif mode == SEARCH_MODE_MULTI:
             self.URL = BASEURL + "/search/shows?q={}"
         else:
@@ -174,7 +189,7 @@ class TLookupContext(TBase):
         elif mode == 'tvmaze':
             self.URL = BASEURL + "/shows/{}"
             if embed != None:
-                self.URL += '?embed={}'.format(embed)
+                self.URL += '?' + generate_embed_query_param(embed)
         else:
             raise Exception("Unsupported lookup mode")
 
