@@ -17,6 +17,8 @@ from mtinfo.tvmaze.tvmaze import (
 
     SEARCH_MODE_SINGLE,
     SEARCH_MODE_MULTI,
+
+    stamptodt
 )
 
 logger = Logger(__name__)
@@ -50,10 +52,8 @@ def print_informative(r):
 
         if r.episodes != None:
             for v in r.episodes:
-                dt = datetime.datetime.strptime(v['airstamp'][:-3] + v['airstamp'][-2:], "%Y-%m-%dT%H:%M:%S%z")
-
                 print('    {} | {} ({}x{})'.format(
-                    dt.strftime("%d-%m-%Y %H:%M"),
+                    stamptodt(r['airstamp']).strftime("%d-%m-%Y %H:%M"),
                     v.name,
                     v.season, v.number
                 ))
@@ -64,10 +64,8 @@ def print_informative(r):
             r.person.url
         ))
     elif (r._restype == RESULT_TYPE_SCHEDULE):
-        dt = datetime.datetime.strptime(r['airstamp'][:-3] + r['airstamp'][-2:], "%Y-%m-%dT%H:%M:%S%z")
-
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            dt.strftime("%d-%m-%Y %H:%M"),
+            stamptodt(r['airstamp']).strftime("%d-%m-%Y %H:%M"),
             r.show.name,
             r.name,
             r.season, r.number,

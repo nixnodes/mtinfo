@@ -1,4 +1,4 @@
-import requests, json
+import requests, json, datetime
 
 BASEURL = "http://api.tvmaze.com"
 
@@ -16,16 +16,16 @@ class TResultBase():
         if not isinstance(data, dict):
             raise TypeError("TVMaze result expected dictionary")
 
-        self.data = data
+        self.__data = data
 
     def __getitem__(self, key):
-        return self.data[key] if key in self.data else None
+        return self.__data[key] if key in self.__data else None
 
     def __str__(self):
-        return str(self.data)
+        return str(self.__data)
 
     def __getattr__(self, key):
-        return self.data[key] if key in self.data else None
+        return self.__data[key] if key in self.__data else None
 
 
 class TResultGeneric(TResultBase):
@@ -55,13 +55,26 @@ class TResult(TResultBase):
         TResultGeneric.__init__(self, data)
 
         if restype == RESULT_TYPE_LOOKUP:
-            self.show = TResultBase(data)
-
-        if self._embedded:
-            if self._embedded.episodes:
-                self.episodes = self._embedded.episodes
+            self.show = self
 
         self._restype = restype
+
+        self.setup_convenience_shortcuts()
+
+    def setup_convenience_shortcuts(self):
+
+        if self.network != None:
+            if self.network.country != None:
+                self.network_country = self.network.country.name
+                self.network_name = self.network.name
+        elif self.webChannel != None:
+            if self.webChannel.country != None:
+                self.network_country = self.webChannel.counry
+            self.network_name = self.webChannel.name
+
+        if self._embedded != None:
+            if self._embedded.episodes != None:
+                self.episodes = self._embedded.episodes
 
 
 class TResultMulti():
@@ -189,3 +202,7 @@ class TPeopleContext(TBase):
             self.fetch(self.URL.format(string)),
             RESULT_TYPE_PERSON
         )
+
+
+def stamptodt(ts):
+    return datetime.datetime.strptime(ts[:-3] + ts[-2:], "%Y-%m-%dT%H:%M:%S%z")
