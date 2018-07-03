@@ -76,6 +76,8 @@ class TResult(TResultBase):
         if self._embedded != None:
             if self._embedded.episodes != None:
                 self.episodes = self._embedded.episodes
+        else:
+            self._embedded = TResultBase({})
 
 
 class TResultMulti():
@@ -157,7 +159,6 @@ class TSearchContext(TBase):
 
             if embed != None:
                 self.URL += '&' + generate_embed_query_param(embed)
-            print(self.URL)
         elif mode == SEARCH_MODE_MULTI:
             self.URL = BASEURL + "/search/shows?q={}"
         else:
