@@ -151,6 +151,10 @@ class BaseNotFoundException(Exception):
     pass
 
 
+class TBaseHTTPError(Exception):
+    pass
+
+
 class QueryResult():
 
     def __init__(self, data, cached = False):
@@ -162,7 +166,7 @@ class TBase():
     URL = None
     clpair = None
 
-    def __init__(self, cache = None, helper = None, rate_limit = 2, rlcallback = None):
+    def __init__(self, cache = None, helper = None, rlcallback = None):
 
         if cache:
             assert isinstance(cache, IStor)
@@ -172,27 +176,12 @@ class TBase():
 
         self.cache = cache
         self.helper = helper
-        self.rate_limit = rate_limit
         self._rlcallback = rlcallback
-
-        self._last_rlcheck = time.monotonic()
-        self._rlcounter = 0
 
     def httpfetch(self, query = None):
 
         if self._rlcallback:
             self._rlcallback()
-        else:
-
-            if time.monotonic() - self._last_rlcheck > 0.25:
-                raise Exception()
-                while self._rlcounter / (time.monotonic() - self._last_rlcheck) > self.rate_limit:
-                    time.sleep(0.025)
-
-                self._last_rlcheck = time.monotonic()
-                self._rlcounter = 0
-
-            self._rlcounter += 1
 
         r = requests.get(self.URL.format(query))
 
@@ -200,7 +189,7 @@ class TBase():
             raise BaseNotFoundException('Not found')
 
         if r.status_code != 200:
-            raise Exception("Query failed: {}".format(r.status_code))
+            raise TBaseHTTPError("Query failed: {}".format(r.status_code))
 
         return json.loads(r.text)
 
@@ -226,7 +215,6 @@ class TBase():
                     'data': ResultJSONEncoder().encode(result.data)
                 }
             )
-            self.cache.commit()
 
     def result(self, data, restype, rc = Result, *args, **kwargs):
         assert rc == Result or rc == ResultMulti
@@ -246,16 +234,14 @@ class TBase():
         if not self.clpair:
             return None
 
-        e = self.cache.get(*self.clpair, '{}'.format(query))
+        e = self.cache.get(self.clpair[0], self.clpair[1], '{}'.format(query))
 
         if not e:
             return None
 
         if self.restype == RESULT_TYPE_SEARCH:
-            print(self.cache_expire_time)
             for v in e:
                 if (time.time() - v['td'] > self.cache_expire_time):
-                    print(v['data'], time.time() - v['td'])
                     return None
 
             r = [ {'show': json.loads(x['data'])} for x in e]
@@ -265,7 +251,6 @@ class TBase():
                 key = lambda data: float(data['show']['rating']['average']) if data['show']['rating']['average'] != None else 0,
                 reverse = False)
 
-            print(r)
             return r
         else:
             if (time.time() - e[0]['td'] < self.cache_expire_time):
@@ -372,7 +357,6 @@ class ScheduleContext(TBase):
 
 class PeopleContext(TBase):
     URL = BASEURL + "/search/people?q={}"
-
     restype = RESULT_TYPE_PERSON
 
 

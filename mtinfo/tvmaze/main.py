@@ -3,6 +3,7 @@ import logging, argparse, json, time
 from ..logging import set_loglevel, Logger
 from ..arg import _arg_parse_common
 from ..cache import IStor
+from .tests.generic import run as run_generic_test
 
 from configparser import ConfigParser
 
@@ -52,6 +53,7 @@ def _argparse(parser):
     parser.add_argument('-c', type = str, nargs = '?', help = 'Config file')
     parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
     parser.add_argument('-list', action = 'store_true', help = 'List cache')
+    parser.add_argument('-test', action = 'store_true', help = 'Run tests')
     parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
     parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
     parser.add_argument('query', nargs = '*')
@@ -147,8 +149,8 @@ def lookup_show(*args, embed = None, **kwargs):
 
     do_query(
         *args,
-        **kwargs,
         embed = e,
+        **kwargs
     )
 
 
@@ -296,6 +298,9 @@ def main():
     _arg_parse_common(parser)
     _argparse(parser)
     a = vars(parser.parse_known_args()[0])
+
+    if a['test']:
+        return run_generic_test()
 
     if a['d'] == True:
         set_loglevel(logging.DEBUG)

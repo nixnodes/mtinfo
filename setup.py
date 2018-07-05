@@ -14,6 +14,7 @@ setup(
     packages = [
         'mtinfo',
         'mtinfo.tvmaze',
+        'mtinfo.tvmaze.tests'
     ],
     install_requires = [
         'requests>=2.18',
