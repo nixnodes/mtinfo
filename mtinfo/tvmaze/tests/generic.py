@@ -25,8 +25,6 @@ from ...cache import IStor
 
 from ...logging import set_loglevel
 
-set_loglevel(logging.DEBUG)
-
 
 def query(context, query = None):
 
@@ -50,6 +48,8 @@ def query(context, query = None):
 
 
 def run():
+
+    set_loglevel(logging.DEBUG)
 
     cache = IStor("/tmp/tvmaze.db", STORAGE_SCHEMA)
 
@@ -107,7 +107,7 @@ def run():
     query(context)
 
     cache.close()
-    
+
     print("OK: All tests succeeded")
-    
+
     sys.exit(0)
