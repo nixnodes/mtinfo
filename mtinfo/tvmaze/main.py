@@ -1,4 +1,4 @@
-import logging, argparse
+import logging, argparse, json, time
 
 from ..logging import set_loglevel, Logger
 from ..arg import _arg_parse_common
@@ -14,6 +14,7 @@ from .tvmaze import (
     ScheduleContext,
     PeopleContext,
     ResultMulti,
+    Result,
 
     BaseNotFoundException,
 
@@ -42,14 +43,17 @@ logger = Logger(__name__)
 def _argparse(parser):
     parser.add_argument('-machine', action = 'store_true', help = 'Machine-readable output')
     parser.add_argument('-l', type = str, nargs = '?', help = 'Lookup by foreign ID [imdb|tvrage|thetvdb]')
-    parser.add_argument('-i', type = str, nargs = '?', help = 'Lookup by ID')
+    parser.add_argument('-i', action = 'store_true', help = 'Lookup by ID')
     parser.add_argument('-s', action = 'store_true', help = 'Today\'s schedule (US)')
     parser.add_argument('-p', action = 'store_true', help = 'Search people')
     parser.add_argument('-e', action = 'store_true', help = 'Embed episodes in query result')
     parser.add_argument('-m', action = 'store_true', help = 'Multiple results on search')
     parser.add_argument('-f', type = str, nargs = '?', help = 'Format output')
     parser.add_argument('-c', type = str, nargs = '?', help = 'Config file')
+    parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
+    parser.add_argument('-list', action = 'store_true', help = 'List cache')
     parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
+    parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
     parser.add_argument('query', nargs = '*')
 
 
@@ -100,11 +104,7 @@ def print_informative(r):
         ))
 
 
-def do_query(context, q = None, machine = False, fmt = None, **kwargs):
-    logger.debug("Query: '{}'".format(q))
-
-    r = context(**kwargs).query(q)
-
+def _do_print(r, machine = False, fmt = None):
     if fmt != None:
         if isinstance(r, ResultMulti):
             for v in r:
@@ -127,6 +127,14 @@ def do_query(context, q = None, machine = False, fmt = None, **kwargs):
             print_informative(r)
 
 
+def do_query(context, q = None, machine = False, fmt = None, **kwargs):
+    logger.debug("Query: '{}'".format(q))
+
+    r = context(**kwargs).query(q)
+
+    _do_print(r, machine, fmt)
+
+
 def lookup_show(*args, embed = None, **kwargs):
 
     e = [
@@ -144,29 +152,129 @@ def lookup_show(*args, embed = None, **kwargs):
     )
 
 
-def _main(a, config, cache):
+def do_list(cache, **kwargs):
+    for v in cache.getall('shows'):
+        result = Result(
+            json.loads(v['data']),
+            restype = RESULT_TYPE_LOOKUP,
+            helper = GenericShowHelper,
+        )
+        _do_print(result, **kwargs)
 
-    if a['cache_expire']:
-        cache_expire_time = int(a['cache_expire'])
-    else:
-        cache_expire_time = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
 
-    embed = []
+def _do_search(qs, a, cache, **kwargs):
 
-    if a['e']:
-        embed.append('episodes')
-
-    if a['i'] != None:
+    if a['i']:
         lookup_show(
             LookupContext,
-            q = a['i'],
+            q = qs,
             machine = a['machine'],
             fmt = a['f'],
             mode = 'tvmaze',
             embed = ['episodes'] if a['e'] else None,
             helper = GenericShowHelper,
             cache = cache,
-            cache_expire_time = cache_expire_time
+            **kwargs
+        )
+    elif (a['l'] != None):
+        lookup_show(
+            LookupContext,
+            q = qs,
+            machine = a['machine'],
+            fmt = a['f'],
+            mode = a['l'],
+            embed = ['episodes'] if a['e'] else None,
+            helper = GenericShowHelper,
+            cache = cache,
+            **kwargs
+        )
+    elif (a['p'] == True):
+        do_query(
+            PeopleContext,
+            q = qs,
+            fmt = a['f'],
+            machine = a['machine'],
+            cache = cache,
+            **kwargs
+        )
+    else:
+        lookup_show(
+            SearchContext,
+            mode = SEARCH_MODE_MULTI if a['m'] else SEARCH_MODE_SINGLE,
+            q = qs,
+            machine = a['machine'],
+            fmt = a['f'],
+            embed = ['episodes'] if a['e'] else None,
+            helper = GenericShowHelper,
+            cache = cache,
+            **kwargs
+        )
+
+
+def _invoke_search(qs, a, cache):
+
+    if a['b'] != None:
+        if a['rate_limit'] != None:
+            rate_limit = float(a['rate_limit'])
+        else:
+            rate_limit = 2
+
+        sr = 0
+
+        class rlst():
+
+            def __init__(self, rate_limit):
+                self._last_rlcheck = time.monotonic()
+                self._rlcounter = 0
+                self.rate_limit = rate_limit
+
+        _rlst = rlst(rate_limit)
+
+        def rlcallback(rlst):
+
+            while rlst._rlcounter / (time.monotonic() - rlst._last_rlcheck) > rlst.rate_limit:
+                time.sleep(0.03)
+
+            rlst._rlcounter += 1
+
+        with open(a['b'], 'r') as f:
+
+            for l in f:
+                l = l.rstrip()
+                if len(l) == 0:
+                    continue
+
+                try:
+                    sr += 1
+                    # pt = time.monotonic()
+                    _do_search(l, a, cache, rlcallback = lambda: rlcallback(_rlst))
+                except BaseNotFoundException as e:
+                    logger.error(e)
+    else:
+
+        if (len(qs) == 0):
+            raise Exception("Missing query")
+
+        _do_search(qs, a, cache)
+
+
+def _main(a, config, cache):
+
+    if a['cache_expire']:
+        cache.data['cache_expire_time'] = int(a['cache_expire'])
+    else:
+        cache.data['cache_expire_time'] = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
+
+    embed = []
+
+    if a['e']:
+        embed.append('episodes')
+
+    if a['list']:
+        do_list(
+            cache,
+            machine = a['machine'],
+            fmt = a['f'],
         )
     elif a['s'] == True:
         do_query(
@@ -176,43 +284,8 @@ def _main(a, config, cache):
             helper = GenericEpisodeHelper
         )
     else:
-        if (len(a['query']) == 0):
-            raise Exception("Missing query")
 
-        qs = ' '.join(a['query'])
-
-        if (a['l'] != None):
-            lookup_show(
-                LookupContext,
-                q = qs,
-                machine = a['machine'],
-                fmt = a['f'],
-                mode = a['l'],
-                embed = ['episodes'] if a['e'] else None,
-                helper = GenericShowHelper,
-                cache = cache,
-                cache_expire_time = cache_expire_time
-            )
-        elif (a['p'] == True):
-            do_query(
-                PeopleContext,
-                q = qs,
-                fmt = a['f'],
-                machine = a['machine'],
-                cache = cache
-            )
-        else:
-            lookup_show(
-                SearchContext,
-                mode = SEARCH_MODE_MULTI if a['m'] else SEARCH_MODE_SINGLE,
-                q = qs,
-                machine = a['machine'],
-                fmt = a['f'],
-                embed = ['episodes'] if a['e'] else None,
-                helper = GenericShowHelper,
-                cache = cache,
-                cache_expire_time = cache_expire_time
-            )
+        _invoke_search(' '.join(a['query']), a, cache)
 
 
 def main():
@@ -239,6 +312,8 @@ def main():
 
     try:
         _main(a, config, cache)
+    except KeyboardInterrupt:
+        pass
     except BaseNotFoundException as e:
         logger.error(e)
     finally:

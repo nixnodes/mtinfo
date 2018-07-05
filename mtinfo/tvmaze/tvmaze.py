@@ -5,7 +5,7 @@ from ..logging import Logger
 
 BASEURL = "http://api.tvmaze.com"
 
-RESULT_TYPE_NORMAL = 0
+RESULT_TYPE_NONE = 0
 RESULT_TYPE_SEARCH = 1
 RESULT_TYPE_PERSON = 2
 RESULT_TYPE_SCHEDULE = 3
@@ -88,7 +88,7 @@ class ResultBaseHelper():
 
 class Result():
 
-    def __init__(self, data, restype = RESULT_TYPE_NORMAL, helper = None, cached = False):
+    def __init__(self, data, restype = RESULT_TYPE_NONE, helper = None, cached = False):
 
         self.data = ResultGeneric(data)
         self.is_cached = cached
@@ -162,18 +162,37 @@ class TBase():
     URL = None
     clpair = None
 
-    def __init__(self, cache = None, helper = None, cache_expire_time = 86400):
+    def __init__(self, cache = None, helper = None, rate_limit = 2, rlcallback = None):
 
         if cache:
             assert isinstance(cache, IStor)
+            self.cache_expire_time = cache.data.get('cache_expire_time', 86400)
         if helper:
             assert issubclass(helper, ResultBaseHelper)
 
         self.cache = cache
         self.helper = helper
-        self.cache_expire_time = cache_expire_time
+        self.rate_limit = rate_limit
+        self._rlcallback = rlcallback
+
+        self._last_rlcheck = time.monotonic()
+        self._rlcounter = 0
 
     def httpfetch(self, query = None):
+
+        if self._rlcallback:
+            self._rlcallback()
+        else:
+
+            if time.monotonic() - self._last_rlcheck > 0.25:
+                raise Exception()
+                while self._rlcounter / (time.monotonic() - self._last_rlcheck) > self.rate_limit:
+                    time.sleep(0.025)
+
+                self._last_rlcheck = time.monotonic()
+                self._rlcounter = 0
+
+            self._rlcounter += 1
 
         r = requests.get(self.URL.format(query))
 
@@ -203,9 +222,11 @@ class TBase():
                     'language': result.data.language,
                     'type': result.data.type,
                     'genres': '|'.join(result.data.genres) if result.data.genres else '',
+                    'rating': result.rating,
                     'data': ResultJSONEncoder().encode(result.data)
                 }
             )
+            self.cache.commit()
 
     def result(self, data, restype, rc = Result, *args, **kwargs):
         assert rc == Result or rc == ResultMulti
@@ -231,12 +252,21 @@ class TBase():
             return None
 
         if self.restype == RESULT_TYPE_SEARCH:
+            print(self.cache_expire_time)
             for v in e:
                 if (time.time() - v['td'] > self.cache_expire_time):
+                    print(v['data'], time.time() - v['td'])
                     return None
 
-            return [ {'show': json.loads(x['data'])} for x in e]
+            r = [ {'show': json.loads(x['data'])} for x in e]
 
+            r = sorted(
+                r,
+                key = lambda data: float(data['show']['rating']['average']) if data['show']['rating']['average'] != None else 0,
+                reverse = False)
+
+            print(r)
+            return r
         else:
             if (time.time() - e[0]['td'] < self.cache_expire_time):
                 return json.loads(e[0]['data'])

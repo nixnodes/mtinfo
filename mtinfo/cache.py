@@ -1,7 +1,10 @@
 import threading, json
 import sqlite3
 
-from unnamed.logging import (
+
+from .data import DStorBase
+
+from .logging import (
     Logger
 )
 
@@ -20,12 +23,15 @@ class IStorException(Exception):
 
 
 class IStor:
+    
 
     def __init__(self, path, schema):
 
         self._path = path
         self._conn = conn = sqlite3.connect(self._path)
         self._schema = schema
+        
+        self.data = DStorBase()
 
         c = conn.cursor()
         conn.row_factory = dict_factory
@@ -105,7 +111,7 @@ class IStor:
     def getall(self, table):
         return self._conn.cursor().execute (
             "SELECT * FROM {}".format(table)
-        ).fetchall()
+        )
 
     def getone(self, *args):
         r = self.get(*args)
