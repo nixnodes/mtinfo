@@ -1,15 +1,21 @@
-import logging, argparse, json
+import logging, argparse
 
 from ..logging import set_loglevel, Logger
-from ..misc import strip_tags
 from ..arg import _arg_parse_common
+from ..cache import IStor
 
-from mtinfo.tvmaze.tvmaze import (
-    TSearchContext,
-    TLookupContext,
-    TScheduleContext,
-    TPeopleContext,
-    TResultMulti,
+from configparser import ConfigParser
+
+CONFIG_FILE = '/etc/mtinfo.conf'
+
+from .tvmaze import (
+    SearchContext,
+    LookupContext,
+    ScheduleContext,
+    PeopleContext,
+    ResultMulti,
+
+    BaseNotFoundException,
 
     # RESULT_TYPE_NORMAL,
     RESULT_TYPE_SEARCH,
@@ -20,16 +26,20 @@ from mtinfo.tvmaze.tvmaze import (
     SEARCH_MODE_SINGLE,
     SEARCH_MODE_MULTI,
 
-    stamptodt,
+    ResultJSONEncoder,
 
-    TResultJSONEncoder
+    STORAGE_SCHEMA
+)
+
+from .helpers import (
+    GenericShowHelper,
+    GenericEpisodeHelper
 )
 
 logger = Logger(__name__)
 
 
 def _argparse(parser):
-    # parser.add_argument('-bla', type = str, nargs = '?')
     parser.add_argument('-machine', action = 'store_true', help = 'Machine-readable output')
     parser.add_argument('-l', type = str, nargs = '?', help = 'Lookup by foreign ID [imdb|tvrage|thetvdb]')
     parser.add_argument('-i', type = str, nargs = '?', help = 'Lookup by ID')
@@ -37,6 +47,9 @@ def _argparse(parser):
     parser.add_argument('-p', action = 'store_true', help = 'Search people')
     parser.add_argument('-e', action = 'store_true', help = 'Embed episodes in query result')
     parser.add_argument('-m', action = 'store_true', help = 'Multiple results on search')
+    parser.add_argument('-f', type = str, nargs = '?', help = 'Format output')
+    parser.add_argument('-c', type = str, nargs = '?', help = 'Config file')
+    parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
     parser.add_argument('query', nargs = '*')
 
 
@@ -45,60 +58,161 @@ def print_informative(r):
     if (r._restype_ == RESULT_TYPE_SEARCH or
          r._restype_ == RESULT_TYPE_LOOKUP):
 
-        print('{} ({}) - [{} - {}] - {}min | {}'.format(
-            r.show.name,
-            r.show.language,
-            r.show.type,
-            '|'.join(r.show.genres) if r.show.genres  else 'Unknown',
-            r.show.runtime,
-            strip_tags(r.show.summary) if r.show.summary != None else 'None'
+        print('Name: {}\nURL: {}\nNetwork: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}\nSummary: {}'.format(
+            r.name,
+            r.url,
+            r.network_name,
+            r.network_country,
+            r.network_country_code,
+            r.language,
+            r.type,
+            r.genres,
+            r.schedule,
+            r.runtime,
+            r.previousepisode,
+            r.nextepisode,
+            r.summary
         ))
 
-        if r._embedded != None and r._embedded.episodes != None:
-            for v in r._embedded.episodes:
+        if r.episodes != None:
+            for v in r.episodes:
                 print('    {} | {} ({}x{})'.format(
-                    stamptodt(v.airstamp).strftime("%d-%m-%Y %H:%M"),
+                    v.local_airtime,
                     v.name,
                     v.season, v.number
                 ))
 
     elif (r._restype_ == RESULT_TYPE_PERSON):
         print('{} - {}'.format(
-            r.person.name,
-            r.person.url
+            r.data.person.name,
+            r.data.person.url
         ))
     elif (r._restype_ == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            stamptodt(r.airstamp).strftime("%d-%m-%Y %H:%M"),
+            r.local_airtime,
             r.show.name,
             r.name,
             r.season, r.number,
             r.show.type,
-            '|'.join(r.show.genres) if r.show.genres else 'Unknown',
-            r.runtime,
-            strip_tags(r.summary) if r.summary != None else 'None'
+            r.show.genres,
+            r.data.runtime,
+            r.summary
         ))
 
 
-def do_query(context, q = None, machine = False, **kwargs):
+def do_query(context, q = None, machine = False, fmt = None, **kwargs):
     logger.debug("Query: '{}'".format(q))
 
     r = context(**kwargs).query(q)
 
-    if machine:
-        if isinstance(r, TResultMulti):
-            o = []
-            for v in r.data:
-                o.append(v)
-            print(TResultJSONEncoder().encode(o))
+    if fmt != None:
+        if isinstance(r, ResultMulti):
+            for v in r:
+                print(v.format(fmt))
         else:
-            print(TResultJSONEncoder().encode(r))
+            print(r.format(fmt))
+    elif machine:
+        if isinstance(r, ResultMulti):
+            o = []
+            for v in r:
+                o.append(v.data)
+            print(ResultJSONEncoder().encode(o))
+        else:
+            print(ResultJSONEncoder().encode(r.data))
     else:
-        if isinstance(r, TResultMulti):
+        if isinstance(r, ResultMulti):
             for v in r:
                 print_informative(v)
         else:
             print_informative(r)
+
+
+def lookup_show(*args, embed = None, **kwargs):
+
+    e = [
+        'nextepisode',
+        'previousepisode'
+    ]
+
+    if embed:
+        e.extend(embed)
+
+    do_query(
+        *args,
+        **kwargs,
+        embed = e,
+    )
+
+
+def _main(a, config, cache):
+
+    if a['cache_expire']:
+        cache_expire_time = int(a['cache_expire'])
+    else:
+        cache_expire_time = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
+
+    embed = []
+
+    if a['e']:
+        embed.append('episodes')
+
+    if a['i'] != None:
+        lookup_show(
+            LookupContext,
+            q = a['i'],
+            machine = a['machine'],
+            fmt = a['f'],
+            mode = 'tvmaze',
+            embed = ['episodes'] if a['e'] else None,
+            helper = GenericShowHelper,
+            cache = cache,
+            cache_expire_time = cache_expire_time
+        )
+    elif a['s'] == True:
+        do_query(
+            ScheduleContext,
+            machine = a['machine'],
+            fmt = a['f'],
+            helper = GenericEpisodeHelper
+        )
+    else:
+        if (len(a['query']) == 0):
+            raise Exception("Missing query")
+
+        qs = ' '.join(a['query'])
+
+        if (a['l'] != None):
+            lookup_show(
+                LookupContext,
+                q = qs,
+                machine = a['machine'],
+                fmt = a['f'],
+                mode = a['l'],
+                embed = ['episodes'] if a['e'] else None,
+                helper = GenericShowHelper,
+                cache = cache,
+                cache_expire_time = cache_expire_time
+            )
+        elif (a['p'] == True):
+            do_query(
+                PeopleContext,
+                q = qs,
+                fmt = a['f'],
+                machine = a['machine'],
+                cache = cache
+            )
+        else:
+            lookup_show(
+                SearchContext,
+                mode = SEARCH_MODE_MULTI if a['m'] else SEARCH_MODE_SINGLE,
+                q = qs,
+                machine = a['machine'],
+                fmt = a['f'],
+                embed = ['episodes'] if a['e'] else None,
+                helper = GenericShowHelper,
+                cache = cache,
+                cache_expire_time = cache_expire_time
+            )
 
 
 def main():
@@ -110,45 +224,24 @@ def main():
     _argparse(parser)
     a = vars(parser.parse_known_args()[0])
 
-    if (a['d'] == True):
+    if a['d'] == True:
         set_loglevel(logging.DEBUG)
 
-    if (a['i'] != None):
-        do_query(
-            TLookupContext,
-            q = a['i'],
-            machine = a['machine'],
-            mode = 'tvmaze',
-            embed = 'episodes' if a['e'] else None
-        )
-    elif (a['s'] == True):
-        do_query(TScheduleContext, machine = a['machine'])
+    config = ConfigParser()
+    config.read(a['c'] if a['c'] else CONFIG_FILE)
+
+    cache_file = config.get('tvmaze', 'database_file', fallback = None)
+
+    if cache_file:
+        cache = IStor(cache_file, STORAGE_SCHEMA)
     else:
-        if (len(a['query']) == 0):
-            raise Exception("Missing query")
+        cache = None
 
-        qs = ' '.join(a['query'])
-
-        if (a['l'] != None):
-            do_query(
-                TLookupContext,
-                q = qs,
-                machine = a['machine'],
-                mode = a['l'],
-                embed = 'episodes' if a['e'] else None
-            )
-        elif (a['p'] == True):
-            do_query(
-                TPeopleContext,
-                q = qs,
-                machine = a['machine']
-            )
-        else:
-            do_query(
-                TSearchContext,
-                mode = SEARCH_MODE_MULTI if a['m'] else SEARCH_MODE_SINGLE,
-                q = qs,
-                machine = a['machine'],
-                embed = 'episodes' if a['e'] else None
-            )
+    try:
+        _main(a, config, cache)
+    except BaseNotFoundException as e:
+        logger.error(e)
+    finally:
+        if cache:
+            cache.close()
 

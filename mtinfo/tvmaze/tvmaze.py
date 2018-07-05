@@ -1,4 +1,7 @@
-import requests, json, datetime
+import requests, json, time, datetime
+
+from ..cache import IStor
+from ..logging import Logger
 
 BASEURL = "http://api.tvmaze.com"
 
@@ -7,20 +10,35 @@ RESULT_TYPE_SEARCH = 1
 RESULT_TYPE_PERSON = 2
 RESULT_TYPE_SCHEDULE = 3
 RESULT_TYPE_LOOKUP = 4
-RESULT_TYPE_EPISODES = 5
+RESULT_TYPE_EPISODE = 5
+
+STORAGE_SCHEMA = {
+    'shows': [
+        { 'k' : 'id', 't': 'integer', 'f': 'index'},
+        { 'k' : 'td', 't': 'integer', 'f': 'number'},
+        { 'k' : 'name', 't': 'text', 'f': 'text'},
+        { 'k' : 'type', 't': 'text', 'f': 'text'},
+        { 'k' : 'genres', 't': 'text', 'f': 'text'},
+        { 'k' : 'country', 't': 'text', 'f': 'text'},
+        { 'k' : 'language', 't': 'text', 'f': 'text'},
+        { 'k' : 'data', 't': 'text', 'f': 'text'},
+    ],
+}
+
+logger = Logger(__name__)
 
 
-class TResultJSONEncoder(json.JSONEncoder):
+class ResultJSONEncoder(json.JSONEncoder):
 
     def default(self, o):
         return o._rawdata_
 
 
-class TResultBase():
+class ResultBase():
 
     def __init__(self, data):
         if not isinstance(data, dict):
-            raise TypeError("TVMaze result expected dictionary")
+            raise TypeError("Result expected dictionary")
 
         self._rawdata_ = data
 
@@ -34,69 +52,87 @@ class TResultBase():
         return self._rawdata_[key] if key in self._rawdata_ else None
 
 
-class TResultGeneric(TResultBase):
+class ResultGeneric(ResultBase):
 
     def __init__(self, data):
 
-        TResultBase.__init__(self, data)
+        ResultBase.__init__(self, data)
 
         def wrap_list_recursive(l):
             for i, v in enumerate(l):
                 if isinstance(v, dict):
-                    l[i] = TResultGeneric(v)
+                    l[i] = ResultGeneric(v)
                 elif isinstance(v, list):
                     wrap_list_recursive(v)
 
         for k, v in data.items():
             if isinstance(v, dict):
-                data[k] = TResultGeneric(v)
+                data[k] = ResultGeneric(v)
             elif isinstance(v, list):
                 wrap_list_recursive(v)
 
 
-class TResult(TResultBase):
+class ResultBaseHelper():
 
-    def __init__(self, data, restype = RESULT_TYPE_NORMAL):
+    keys = []
 
-        TResultGeneric.__init__(self, data)
+    def __init__(self, result):
+        assert isinstance(result, Result)
+        for v in self.keys:
+            result._bind_key(v, None)
+        self.do(result)
 
-        if restype == RESULT_TYPE_LOOKUP:
-            self.show = self
+    def do(self):
+        raise Exception("Not implemented")
+
+
+class Result():
+
+    def __init__(self, data, restype = RESULT_TYPE_NORMAL, helper = None, cached = False):
+
+        self.data = ResultGeneric(data)
+        self.is_cached = cached
+
+        if self.data._embedded == None:
+            self.data._embedded = ResultBase({})
 
         self._restype_ = restype
 
-        self.setup_convenience_shortcuts()
+        self.__keys = {
+            '\\n': '\n'
+        }
+        self._bind_key('data', self.data)
 
-    def setup_convenience_shortcuts(self):
+        if helper != None:
+            assert issubclass(helper, ResultBaseHelper)
+            helper(self)
 
-        if self.network != None:
-            self.network_name = self.network.name
-            if self.network.country != None:
-                self.network_country = self.network.country.name
-                self.network_country_code = self.network.country.code
+    def _bind_key(self, k, d):
+        setattr(self, k, d)
+        self.__keys[k] = d
 
-        elif self.webChannel != None:
-            self.network_name = self.webChannel.name
-            if self.webChannel.country:
-                self.network_country = self.webChannel.country.name
-                self.network_country_code = self.webChannel.country.code
+    def __getattr__(self, key):
+        return self.__keys[key] if key in self.__keys else None
 
-        if self._embedded == None:
-            self._embedded = TResultBase({})
+    def format(self, string):
+        return string.format(**self.__keys)
 
 
-class TResultMulti():
+class ResultMulti():
 
-    def __init__(self, data, restype):
+    def __init__(self, data, restype, *args, **kwargs):
         if not isinstance(data, list):
-            raise TypeError("TVMaze query result expected list")
+            raise TypeError("Query result expected list")
 
         self.data = []
         for v in data:
-            self.data.append(TResult(v, restype))
 
-    def parse(self):
-        raise Exception("Not implemented")
+            if restype == RESULT_TYPE_SEARCH:
+                r = Result(v['show'], restype = restype, *args, **kwargs)
+            else:
+                r = Result(v, restype = restype, *args, **kwargs)
+
+            self.data.append(r)
 
     def __iter__(self):
         return iter(self.data)
@@ -111,29 +147,125 @@ class TResultMulti():
         )
 
 
-class TBaseNotFoundException(Exception):
+class BaseNotFoundException(Exception):
     pass
+
+
+class QueryResult():
+
+    def __init__(self, data, cached = False):
+        self.data = data
+        self.cached = cached
 
 
 class TBase():
     URL = None
+    clpair = None
 
-    def __init__(self, cache = None):
+    def __init__(self, cache = None, helper = None, cache_expire_time = 86400):
+
+        if cache:
+            assert isinstance(cache, IStor)
+        if helper:
+            assert issubclass(helper, ResultBaseHelper)
+
         self.cache = cache
+        self.helper = helper
+        self.cache_expire_time = cache_expire_time
 
-    def query(self, *args, **kwargs):
-        raise Exception("Not implemented")
+    def httpfetch(self, query = None):
 
-    def fetch(self, url = None):
-        r = requests.get(url)
+        r = requests.get(self.URL.format(query))
 
         if r.status_code == 404:
-            raise TBaseNotFoundException('Not found')
+            raise BaseNotFoundException('Not found')
 
         if r.status_code != 200:
             raise Exception("Query failed: {}".format(r.status_code))
 
         return json.loads(r.text)
+
+    def cachedump(self, result):
+
+        if (result.is_cached == True):
+            return
+
+        if not self.clpair:
+            return
+
+        if self.clpair[0] == 'shows':
+            logger.debug('Writing cache [{}]..'.format(result.data.id))
+            self.cache.set(self.clpair[0], {
+                    'id': result.data.id,
+                    'td': time.time(),
+                    'name': result.data.name,
+                    'country': result.network_country,
+                    'language': result.data.language,
+                    'type': result.data.type,
+                    'genres': '|'.join(result.data.genres) if result.data.genres else '',
+                    'data': ResultJSONEncoder().encode(result.data)
+                }
+            )
+
+    def result(self, data, restype, rc = Result, *args, **kwargs):
+        assert rc == Result or rc == ResultMulti
+
+        result = rc(data.data, restype, cached = data.cached, *args, **kwargs)
+
+        if self.cache:
+            if isinstance(result, ResultMulti):
+                for r in result:
+                    self.cachedump(r)
+            elif isinstance(result, Result):
+                self.cachedump(result)
+
+        return result
+
+    def cachefetch(self, query):
+        if not self.clpair:
+            return None
+
+        e = self.cache.get(*self.clpair, '{}'.format(query))
+
+        if not e:
+            return None
+
+        if self.restype == RESULT_TYPE_SEARCH:
+            for v in e:
+                if (time.time() - v['td'] > self.cache_expire_time):
+                    return None
+
+            return [ {'show': json.loads(x['data'])} for x in e]
+
+        else:
+            if (time.time() - e[0]['td'] < self.cache_expire_time):
+                return json.loads(e[0]['data'])
+            else:
+                return None
+
+    def fetch(self, query):
+        if self.cache:
+            data = self.cachefetch(query)
+            if data != None:
+                logger.debug('Loading from cache [{}]'.format(query))
+                return QueryResult(data, cached = True)
+
+        return QueryResult(self.httpfetch(query), cached = False)
+
+    def query(self, query):
+        if (self.restype == RESULT_TYPE_SEARCH or
+            self.restype == RESULT_TYPE_SCHEDULE or
+            self.restype == RESULT_TYPE_PERSON):
+            rclass = ResultMulti
+        else:
+            rclass = Result
+
+        return self.result(
+            self.fetch(query),
+            self.restype,
+            rc = rclass,
+            helper = self.helper
+        )
 
 
 SEARCH_MODE_SINGLE = 1
@@ -154,7 +286,8 @@ def generate_embed_query_param(d):
         raise TypeError('Input can only be a string or list')
 
 
-class TSearchContext(TBase):
+class SearchContext(TBase):
+    clpair = ('shows', 'name')
 
     def __init__(self, mode, embed = None, *args, **kwargs):
         TBase.__init__(self, *args, **kwargs)
@@ -169,19 +302,21 @@ class TSearchContext(TBase):
         else:
             raise Exception("Unknown search mode: {}".format(mode))
 
+        self.mode = mode
+
     def query(self, string):
 
-        data = self.fetch(self.URL.format(string))
-
-        if (isinstance(data, list)):
-            return TResultMulti(data, RESULT_TYPE_SEARCH)
-        elif (isinstance(data, dict)):
-            return TResult(data, RESULT_TYPE_LOOKUP)
+        if self.mode == SEARCH_MODE_MULTI:
+            self.restype = RESULT_TYPE_SEARCH
         else:
-            raise Exception("???")
+            self.restype = RESULT_TYPE_LOOKUP
+
+        return TBase.query(self, string)
 
 
-class TLookupContext(TBase):
+class LookupContext(TBase):
+    restype = RESULT_TYPE_LOOKUP
+    clpair = ('shows', 'id')
 
     def __init__(self, mode, embed = None, *args, **kwargs):
         TBase.__init__(self, *args, **kwargs)
@@ -199,31 +334,16 @@ class TLookupContext(TBase):
         else:
             raise Exception("Unsupported lookup mode")
 
-    def query(self, string):
-        return TResult(
-            self.fetch(self.URL.format(string)),
-            RESULT_TYPE_LOOKUP
-        )
 
-
-class TScheduleContext(TBase):
+class ScheduleContext(TBase):
     URL = BASEURL + "/schedule"
-
-    def query(self, *args, **kwargs):
-        return TResultMulti(
-            self.fetch(self.URL),
-            RESULT_TYPE_SCHEDULE
-        )
+    restype = RESULT_TYPE_SCHEDULE
 
 
-class TPeopleContext(TBase):
+class PeopleContext(TBase):
     URL = BASEURL + "/search/people?q={}"
 
-    def query(self, string):
-        return TResultMulti(
-            self.fetch(self.URL.format(string)),
-            RESULT_TYPE_PERSON
-        )
+    restype = RESULT_TYPE_PERSON
 
 
 def stamptodt(ts):
