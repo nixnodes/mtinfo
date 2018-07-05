@@ -20,9 +20,6 @@ from .tvmaze import (
     BaseNotFoundException,
 
     # RESULT_TYPE_NORMAL,
-    RESULT_TYPE_SEARCH,
-    RESULT_TYPE_PERSON ,
-    RESULT_TYPE_SCHEDULE,
     RESULT_TYPE_LOOKUP,
 
     SEARCH_MODE_SINGLE,
@@ -35,7 +32,8 @@ from .tvmaze import (
 
 from .helpers import (
     GenericShowHelper,
-    GenericEpisodeHelper
+    GenericEpisodeHelper,
+    print_informative
 )
 
 logger = Logger(__name__)
@@ -58,52 +56,6 @@ def _argparse(parser):
     parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
     parser.add_argument('query', nargs = '*')
 
-
-def print_informative(r):
-
-    if (r._restype_ == RESULT_TYPE_SEARCH or
-         r._restype_ == RESULT_TYPE_LOOKUP):
-
-        print('Name: {}\nURL: {}\nNetwork: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}\nSummary: {}'.format(
-            r.name,
-            r.url,
-            r.network_name,
-            r.network_country,
-            r.network_country_code,
-            r.language,
-            r.type,
-            r.genres,
-            r.schedule,
-            r.runtime,
-            r.previousepisode,
-            r.nextepisode,
-            r.summary
-        ))
-
-        if r.episodes != None:
-            for v in r.episodes:
-                print('    {} | {} ({}x{})'.format(
-                    v.local_airtime,
-                    v.name,
-                    v.season, v.number
-                ))
-
-    elif (r._restype_ == RESULT_TYPE_PERSON):
-        print('{} - {}'.format(
-            r.data.person.name,
-            r.data.person.url
-        ))
-    elif (r._restype_ == RESULT_TYPE_SCHEDULE):
-        print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            r.local_airtime,
-            r.show.name,
-            r.name,
-            r.season, r.number,
-            r.show.type,
-            r.show.genres,
-            r.data.runtime,
-            r.summary
-        ))
 
 
 def _do_print(r, machine = False, fmt = None):

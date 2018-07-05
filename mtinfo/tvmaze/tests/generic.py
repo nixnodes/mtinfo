@@ -1,14 +1,26 @@
 #!/usr/bin/python3
 
 import sys, logging
+
 from ..tvmaze import (
     LookupContext,
+    SearchContext,
+    PeopleContext,
+    ScheduleContext,
+    ResultMulti,
     SEARCH_MODE_SINGLE,
+    SEARCH_MODE_MULTI,
     STORAGE_SCHEMA,
     BaseNotFoundException,
     TBaseHTTPError
 )
-from ..helpers import GenericShowHelper
+
+from ..helpers import (
+    GenericShowHelper,
+    GenericEpisodeHelper,
+    print_informative
+)
+
 from ...cache import IStor
 
 from ...logging import set_loglevel
@@ -16,8 +28,28 @@ from ...logging import set_loglevel
 set_loglevel(logging.DEBUG)
 
 
+def query(context, query = None):
+
+    try:
+        r = context.query(query)
+        if isinstance(r, ResultMulti):
+            for v in r:
+                print_informative(
+                    v
+                )
+        else:
+            print_informative(
+                r
+            )
+
+    except BaseNotFoundException:
+        # we catch the exception thrown on a 404, inform the user and exit normally
+        print('Nothing found')
+    except TBaseHTTPError as e:
+        print (e)
+
+
 def run():
-    querystring = '82'
 
     cache = IStor("/tmp/tvmaze.db", STORAGE_SCHEMA)
 
@@ -32,37 +64,50 @@ def run():
         cache = cache
     )
 
-    try:
-        result = context.query(querystring)
+    query(context, '82')
 
-        print('Name: {}\nURL: {}\nNetwork: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}'.format(
-            result.name,
-            result.url,
-            result.network_name,
-            result.network_country,
-            result.network_country_code,
-            result.language,
-            result.type,
-            result.genres,
-            result.schedule,
-            result.runtime,
-            result.previousepisode,
-            result.nextepisode,
-        ))
+    context = SearchContext(
+        mode = SEARCH_MODE_SINGLE,
+        embed = [
+            'nextepisode',
+            'previousepisode',
+            'episodes'
+        ],
+        helper = GenericShowHelper,
+        cache = cache
+    )
 
-        for ep in result.episodes:
-            print('\tS{}E{} ({}) local airtime {}'.format(
-                ep.season,
-                ep.number,
-                ep.name,
-                ep.local_airtime
-            ))
+    query(context, 'game of thrones')
 
-    except BaseNotFoundException:
-        # we catch the exception thrown on a 404, inform the user and exit normally
-        print('Nothing found')
-    except TBaseHTTPError as e:
-        print (e)
+    context = SearchContext(
+        mode = SEARCH_MODE_MULTI,
+        embed = [
+            'nextepisode',
+            'previousepisode',
+            'episodes'
+        ],
+        helper = GenericShowHelper,
+        cache = cache
+    )
+
+    query(context, 'game')
+
+    context = PeopleContext(
+        helper = GenericEpisodeHelper,
+        cache = cache
+    )
+
+    query(context, 'adam')
+
+    context = ScheduleContext(
+        helper = GenericEpisodeHelper,
+        cache = cache
+    )
+
+    query(context)
 
     cache.close()
+    
+    print("OK: All tests succeeded")
+    
     sys.exit(0)

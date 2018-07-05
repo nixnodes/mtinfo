@@ -6,9 +6,14 @@ from .tvmaze import (
     stamptodt,
 
     RESULT_TYPE_EPISODE,
-    RESULT_TYPE_LOOKUP
+    
+    RESULT_TYPE_PERSON,
+    RESULT_TYPE_LOOKUP,
+    RESULT_TYPE_SEARCH,
+    RESULT_TYPE_SCHEDULE
 )
 from ..misc import strip_tags
+
 
 
 class GenericEpisodeHelper(ResultBaseHelper):
@@ -126,3 +131,51 @@ class GenericShowHelper(ResultBaseHelper):
                     helper = GenericEpisodeHelper
                 ))
             result._bind_key('episodes', o)
+
+
+
+def print_informative(r):
+
+    if (r._restype_ == RESULT_TYPE_SEARCH or
+         r._restype_ == RESULT_TYPE_LOOKUP):
+
+        print('Name: {}\nURL: {}\nNetwork: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}\nSummary: {}'.format(
+            r.name,
+            r.url,
+            r.network_name,
+            r.network_country,
+            r.network_country_code,
+            r.language,
+            r.type,
+            r.genres,
+            r.schedule,
+            r.runtime,
+            r.previousepisode,
+            r.nextepisode,
+            r.summary
+        ))
+
+        if r.episodes != None:
+            for v in r.episodes:
+                print('    {} | {} ({}x{})'.format(
+                    v.local_airtime,
+                    v.name,
+                    v.season, v.number
+                ))
+
+    elif (r._restype_ == RESULT_TYPE_PERSON):
+        print('{} - {}'.format(
+            r.data.person.name,
+            r.data.person.url
+        ))
+    elif (r._restype_ == RESULT_TYPE_SCHEDULE):
+        print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
+            r.local_airtime,
+            r.data.show.name,
+            r.name,
+            r.season, r.number,
+            r.data.show.type,
+            r.data.show.genres,
+            r.data.runtime,
+            r.summary
+        ))
