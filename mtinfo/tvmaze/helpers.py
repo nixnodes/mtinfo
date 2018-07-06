@@ -164,13 +164,13 @@ def print_informative(r):
             r.summary
         ))
 
-        if r.episodes != None:
-            for v in r.episodes:
-                print('    {} | {} ({}x{})'.format(
-                    v.local_airtime,
-                    v.name,
-                    v.season, v.number
-                ))
+        #if r.episodes != None:
+        #    for v in r.episodes:
+        #        print('    {} | {} ({}x{})'.format(
+        #            v.local_airtime,
+        #            v.name,
+        #            v.season, v.number
+        #        ))
 
     elif (r._restype_ == RESULT_TYPE_PERSON):
         print('{} - {}'.format(

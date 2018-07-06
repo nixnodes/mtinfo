@@ -6,6 +6,9 @@ from ..cache import IStor
 from .tests.generic import run as run_generic_test
 from ..data import DStorBase
 
+from ..irc import MTBot
+from .irc import TVMazeIRCCP
+
 from configparser import ConfigParser
 
 CONFIG_FILE = '/etc/mtinfo.conf'
@@ -53,6 +56,7 @@ def _argparse(parser):
     parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
     parser.add_argument('-list', action = 'store_true', help = 'List cache')
     parser.add_argument('-test', action = 'store_true', help = 'Run tests')
+    parser.add_argument('-ircbot', action = 'store_true', help = '')
     parser.add_argument('-sort', type = str, nargs = '?', help = '')
     parser.add_argument('-order', type = str, nargs = '?', help = '')
     parser.add_argument('--cache', type = str, nargs = '?', help = 'Cache sqlite3 database')
@@ -214,7 +218,39 @@ def _invoke_search(qs, a, **kwargs):
         _do_search(qs, a, **kwargs)
 
 
+def _run_irc_client(args, config, cache = None):
+
+    server = config.get('irc', 'server')
+
+    port = int(config.get('irc', 'port', fallback = 6667))
+    tls = bool(config.get('irc', 'tls', fallback = False))
+    tls_verify = bool(config.get('irc', 'tls_verify', fallback = False))
+
+    channels = config.get('irc', 'channels')
+    channels = channels.split(',')
+
+    client = MTBot(
+        config.get('irc', 'nick', fallback = 'mtbot'),
+        realname = 'mtbot',
+        username = 'mtbot',
+        cp = TVMazeIRCCP(cache),
+        options = dict(config.items('irc'))
+    )
+    client.connect(
+        server,
+        port,
+        tls = tls,
+        tls_verify = tls_verify,
+        channels = channels
+    )
+
+    client.handle_forever()
+
+
 def _main(a, config, cache = None, **kwargs):
+
+    if a['ircbot']:
+        return _run_irc_client(a, config, cache)
 
     embed = []
 

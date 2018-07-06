@@ -18,6 +18,7 @@ setup(
     ],
     install_requires = [
         'requests',
+        'pydle'
     ],
     extras_require = {
         ':"linux" in sys_platform':  [
