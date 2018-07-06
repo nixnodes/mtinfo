@@ -1,7 +1,6 @@
 import threading, json
 import sqlite3
 
-
 from .data import DStorBase
 
 from .logging import (
@@ -23,14 +22,13 @@ class IStorException(Exception):
 
 
 class IStor:
-    
 
     def __init__(self, path, schema):
 
         self._path = path
         self._conn = conn = sqlite3.connect(self._path)
         self._schema = schema
-        
+
         self.data = DStorBase()
 
         c = conn.cursor()
@@ -42,10 +40,16 @@ class IStor:
                 if i > 0:
                     s += ','
 
-                s += '{} {} {}'.format(
+                if 'd' in d:
+                    defstr = 'NOT NULL DEFAULT {}'.format(d['d'])
+                else:
+                    defstr = ''
+
+                s += '{} {} {} {}'.format(
                     d['k'],
                     d['t'],
                     'PRIMARY KEY' if d['f'] == 'index' else '',
+                    defstr
                 )
 
             c.execute('CREATE TABLE IF NOT EXISTS {} ({})'.format(k, s))
@@ -63,10 +67,16 @@ class IStor:
                     if d['f'] == 'index':
                         raise IStorException('Cannot add index column to table')
 
-                    s = 'ALTER TABLE {} ADD COLUMN {} {}'.format(
+                    if 'd' in d:
+                        defstr = 'NOT NULL DEFAULT {}'.format(d['d'])
+                    else:
+                        defstr = ''
+
+                    s = 'ALTER TABLE {} ADD COLUMN {} {} {}'.format(
                         k,
                         d['k'],
                         d['t'],
+                        defstr
                     )
 
                     c.execute(s)
@@ -80,7 +90,7 @@ class IStor:
     def commit(self):
         self._conn.commit()
 
-    def get(self, table, k, v):
+    def get(self, table, k, v, sort = None, order = None):
 
         sitem = self.schema_find_item(table, k)
         if not sitem:
@@ -92,9 +102,14 @@ class IStor:
             f = 'SELECT * FROM {} WHERE {} = ?'
         elif t == 'text':
             f = 'SELECT * FROM {} WHERE {} LIKE ?'
-            v = '%' + '%'.join(v.split(' ')) + '%'
+            v = '%'.join(v.split(' ')) + '%'
         else:
             raise IStorException('Unknown type')
+
+        if sort:
+            f += ' ORDER BY {}'.format(sort)
+            if order:
+                f += ' ' + order
 
         c = self._conn.cursor()
 
@@ -108,10 +123,14 @@ class IStor:
             (v,)
         ).fetchall()
 
-    def getall(self, table):
-        return self._conn.cursor().execute (
-            "SELECT * FROM {}".format(table)
-        )
+    def getall(self, table, sort = None, order = None):
+        f = "SELECT * FROM {}".format(table)
+        if sort:
+            f += ' ORDER BY {}'.format(sort)
+            if order:
+                f += ' ' + order
+
+        return self._conn.cursor().execute (f)
 
     def getone(self, *args):
         r = self.get(*args)

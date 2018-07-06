@@ -21,6 +21,7 @@ STORAGE_SCHEMA = {
         { 'k' : 'genres', 't': 'text', 'f': 'text'},
         { 'k' : 'country', 't': 'text', 'f': 'text'},
         { 'k' : 'language', 't': 'text', 'f': 'text'},
+        { 'k' : 'rating', 't': 'real', 'f': 'number', 'd': 0},
         { 'k' : 'data', 't': 'text', 'f': 'text'},
     ],
 }
@@ -171,7 +172,7 @@ DEFAULT_CACHE_EXPIRE_TIME = 86400
 class TBase():
     URL = None
     clpair = None
-    cache_expire_time = DEFAULT_CACHE_EXPIRE_TIME
+    rclass = Result
 
     def __init__(self, cache = None, helper = None, rlcallback = None):
 
@@ -181,6 +182,9 @@ class TBase():
                 'cache_expire_time',
                 DEFAULT_CACHE_EXPIRE_TIME
             )
+        else:
+            self.cache_expire_time = DEFAULT_CACHE_EXPIRE_TIME
+
         if helper != None:
             assert issubclass(helper, ResultBaseHelper)
 
@@ -226,10 +230,10 @@ class TBase():
                 }
             )
 
-    def result(self, data, restype, rc = Result, *args, **kwargs):
-        assert rc == Result or rc == ResultMulti
+    def result(self, data, restype, *args, **kwargs):
+        assert self.rclass == Result or self.rclass == ResultMulti
 
-        result = rc(data.data, restype, cached = data.cached, *args, **kwargs)
+        result = self.rclass(data.data, restype, cached = data.cached, *args, **kwargs)
 
         if self.cache:
             if isinstance(result, ResultMulti):
@@ -244,29 +248,32 @@ class TBase():
         if not self.clpair:
             return None
 
-        e = self.cache.get(self.clpair[0], self.clpair[1], '{}'.format(query))
+        e = self.cache.get(
+            self.clpair[0],
+            self.clpair[1],
+            '{}'.format(query),
+            sort = 'rating',
+            order = 'desc'
+        )
 
         if not e:
             return None
 
-        if self.restype == RESULT_TYPE_SEARCH:
+        if isinstance(self.rclass, ResultMulti):
             for v in e:
                 if (time.time() - v['td'] > self.cache_expire_time):
                     return None
-
-            r = [ {'show': json.loads(x['data'])} for x in e]
-
-            r = sorted(
-                r,
-                key = lambda data: float(data['show']['rating']['average']) if data['show']['rating']['average'] != None else 0,
-                reverse = False)
-
-            return r
         else:
-            if (time.time() - e[0]['td'] < self.cache_expire_time):
-                return json.loads(e[0]['data'])
-            else:
+            if (time.time() - e[0]['td'] > self.cache_expire_time):
                 return None
+
+        return self.load_cache_item(e)
+
+    def load_cache_item(self, e):
+        if isinstance(self.rclass, ResultMulti):
+            return[ json.loads(x['data']) for x in e]
+        else:
+            return json.loads(e[0]['data'])
 
     def fetch(self, query):
         if self.cache:
@@ -278,17 +285,9 @@ class TBase():
         return QueryResult(self.httpfetch(query), cached = False)
 
     def query(self, query):
-        if (self.restype == RESULT_TYPE_SEARCH or
-            self.restype == RESULT_TYPE_SCHEDULE or
-            self.restype == RESULT_TYPE_PERSON):
-            rclass = ResultMulti
-        else:
-            rclass = Result
-
         return self.result(
             self.fetch(query),
             self.restype,
-            rc = rclass,
             helper = self.helper
         )
 
@@ -319,10 +318,12 @@ class SearchContext(TBase):
 
         if mode == SEARCH_MODE_SINGLE:
             self.URL = BASEURL + "/singlesearch/shows?q={}"
+            self.rclass = Result
 
             if embed != None:
                 self.URL += '&' + generate_embed_query_param(embed)
         elif mode == SEARCH_MODE_MULTI:
+            self.rclass = ResultMulti
             self.URL = BASEURL + "/search/shows?q={}"
         else:
             raise Exception("Unknown search mode: {}".format(mode))
@@ -338,10 +339,21 @@ class SearchContext(TBase):
 
         return TBase.query(self, string)
 
+    def load_cache_item(self, e):
+        if self.mode == SEARCH_MODE_MULTI:
+            return sorted(
+                [ {'show': json.loads(x['data'])} for x in e],
+                key = lambda data: float(data['show']['rating']['average']) if data['show']['rating']['average'] != None else 0,
+                reverse = True
+            )
+        else:
+            return json.loads(e[0]['data'])
+
 
 class LookupContext(TBase):
     restype = RESULT_TYPE_LOOKUP
     clpair = ('shows', 'id')
+    rclass = Result
 
     def __init__(self, mode, embed = None, *args, **kwargs):
         TBase.__init__(self, *args, **kwargs)
@@ -363,11 +375,13 @@ class LookupContext(TBase):
 class ScheduleContext(TBase):
     URL = BASEURL + "/schedule"
     restype = RESULT_TYPE_SCHEDULE
+    rclass = ResultMulti
 
 
 class PeopleContext(TBase):
     URL = BASEURL + "/search/people?q={}"
     restype = RESULT_TYPE_PERSON
+    rclass = ResultMulti
 
 
 def stamptodt(ts):

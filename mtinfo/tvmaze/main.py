@@ -53,6 +53,8 @@ def _argparse(parser):
     parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
     parser.add_argument('-list', action = 'store_true', help = 'List cache')
     parser.add_argument('-test', action = 'store_true', help = 'Run tests')
+    parser.add_argument('-sort', type = str, nargs = '?', help = '')
+    parser.add_argument('-order', type = str, nargs = '?', help = '')
     parser.add_argument('--cache', type = str, nargs = '?', help = 'Cache sqlite3 database')
     parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
     parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
@@ -114,8 +116,8 @@ def lookup_show(*args, a = None, embed = None, **kwargs):
     )
 
 
-def do_list(cache = None, **kwargs):
-    for v in cache.getall('shows'):
+def do_list(cache = None, sort = None, order = None, **kwargs):
+    for v in cache.getall('shows', sort = sort, order = order):
         result = Result(
             json.loads(v['data']),
             restype = RESULT_TYPE_LOOKUP,
@@ -214,7 +216,9 @@ def _main(a, config, cache = None, **kwargs):
 
     if a['list']:
         do_list(
-            cache,
+            cache = cache,
+            sort = a['sort'],
+            order = a['order'],
             machine = a['machine'],
             fmt = a['f']
         )
@@ -258,6 +262,8 @@ def main():
 
     if cache_file:
         cache = IStor(cache_file, STORAGE_SCHEMA)
+
+        logger.debug('Cache initialized')
 
         if args.get('cache_expire'):
             cache.data['cache_expire_time'] = int(args['cache_expire'])

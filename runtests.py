@@ -9,21 +9,23 @@ def run(s):
     o = [
         "python",
         "./mtinfo/tvmaze/run.py",
+        "-d",
         "--cache",
         CACHE_FILE
     ]
     o.extend(a)
+    print('Running test: {}'.format(' '.join(o)))
     if call(o) != 0:
         raise Exception("Test failed: {}".format(o))
 
-
 try:
-    run('-i 82 -e')
+    run('-i 1 -e')
+    run('-m game of thrones')
     run('game of thrones')
-    run('-m game of thrones -e')
     run('-p adam')
-    run('-list')
+    run('-list -f {name}')
     run('-s')
+    print('OK: All tests succeeded.')
 finally:
     try:
         if path.exists(CACHE_FILE):

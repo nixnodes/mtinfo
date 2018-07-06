@@ -5,8 +5,8 @@ from mtinfo import __version__ as version
 setup(
     name = 'mtinfo',
     version = version,
-    description = 'TVmaze/iMDB query tool',
-    long_description = 'TVmaze/iMDB query tool',
+    description = 'TVmaze/iMDB API Interface',
+    long_description = 'TVmaze/iMDB API Interface',
     url = 'https://github.com/nixnodes/mtinfo',
     author = 'nixnodes',
     author_email = 'io@nixnodes.net',
@@ -20,7 +20,9 @@ setup(
         'requests',
     ],
     extras_require = {
-        ':"linux" in sys_platform':  ["coloredlogs"]
+        ':"linux" in sys_platform':  [
+            "coloredlogs"
+        ]
     },
     entry_points = {
         'console_scripts': [

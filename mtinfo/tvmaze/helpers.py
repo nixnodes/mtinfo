@@ -139,10 +139,11 @@ def print_informative(r):
     if (r._restype_ == RESULT_TYPE_SEARCH or
          r._restype_ == RESULT_TYPE_LOOKUP):
 
-        print('Name: {}\nURL: {}\nNetwork: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}\nSummary: {}'.format(
+        print('Name: {}\nURL: {}\nNetwork: {}\nRating: {}\nCountry: {}\nCC: {}\nLanguage: {}\nType: {}\nGenres: {}\nSchedule: {}\nRuntime: {} min\nPrevious: {}\nNext: {}\nSummary: {}'.format(
             r.name,
             r.url,
             r.network_name,
+            r.rating,
             r.network_country,
             r.network_country_code,
             r.language,
