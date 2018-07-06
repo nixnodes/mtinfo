@@ -1,4 +1,4 @@
-import logging, argparse, json, time
+import logging, argparse, json, time, sys
 
 from ..logging import set_loglevel, Logger
 from ..arg import _arg_parse_common
@@ -187,18 +187,25 @@ def _invoke_search(qs, a, **kwargs):
 
             rlst._rlcounter += 1
 
-        with open(a['b'], 'r') as f:
+        def procline(l):
+            l = l.rstrip()
+            if len(l) == 0:
+                return 0
 
-            for l in f:
-                l = l.rstrip()
-                if len(l) == 0:
-                    continue
+            try:
+                _do_search(l, a, rlcallback = lambda: rlcallback(_rlst), **kwargs)
+            except BaseNotFoundException as e:
+                logger.error(e)
 
-                try:
-                    sr += 1
-                    _do_search(l, a, rlcallback = lambda: rlcallback(_rlst), **kwargs)
-                except BaseNotFoundException as e:
-                    logger.error(e)
+            return 0
+
+        if a['b'] == '-':
+            for line in sys.stdin:
+                sr += procline(line)
+        else:
+            with open(a['b'], 'r') as f:
+                for line in f:
+                    sr += procline(line)
     else:
 
         if (len(qs) == 0):

@@ -44,7 +44,12 @@ class GenericEpisodeHelper(ResultBaseHelper):
             result._bind_key('local_airtime', stamptodt(result.data.airstamp).strftime("%d-%m-%Y at %H:%M"))
 
         if result.data.summary:
-            result._bind_key('summary', strip_tags(result.data.summary) if isinstance(result.data.summary, str) else None)
+            result._bind_key(
+                'summary',
+                strip_tags(result.data.summary)
+                    if isinstance(result.data.summary, str)
+                    else None
+            )
 
 
 class GenericShowHelper(ResultBaseHelper):
@@ -105,7 +110,12 @@ class GenericShowHelper(ResultBaseHelper):
             ))
 
         if result.data.summary:
-            result._bind_key('summary', strip_tags(result.data.summary) if isinstance(result.data.summary, str) else None)
+            result._bind_key(
+                'summary',
+                strip_tags(result.data.summary)
+                    if isinstance(result.data.summary, str)
+                    else None
+            )
 
         result._bind_key('previousepisode', self.format_episode_info(
             result.data._embedded.previousepisode
