@@ -169,10 +169,6 @@ def _do_search(qs, a, **kwargs):
 def _invoke_search(qs, a, **kwargs):
 
     if a['b'] != None:
-        if a['rate_limit'] != None:
-            rate_limit = float(a['rate_limit'])
-        else:
-            rate_limit = 2
 
         sr = 0
 
@@ -183,7 +179,7 @@ def _invoke_search(qs, a, **kwargs):
                 self._rlcounter = 0
                 self.rate_limit = rate_limit
 
-        _rlst = rlst(rate_limit)
+        _rlst = rlst(a.get('rate_limit', 2))
 
         def rlcallback(rlst):
             while rlst._rlcounter / (time.monotonic() - rlst._last_rlcheck) > rlst.rate_limit:
