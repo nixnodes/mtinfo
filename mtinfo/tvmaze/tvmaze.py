@@ -162,15 +162,22 @@ class QueryResult():
         self.cached = cached
 
 
+DEFAULT_CACHE_EXPIRE_TIME = 86400
+
+
 class TBase():
     URL = None
     clpair = None
+    cache_expire_time = DEFAULT_CACHE_EXPIRE_TIME
 
     def __init__(self, cache = None, helper = None, rlcallback = None):
 
         if cache:
             assert isinstance(cache, IStor)
-            self.cache_expire_time = cache.data.get('cache_expire_time', 86400)
+            self.cache_expire_time = cache.data.get(
+                'cache_expire_time',
+                DEFAULT_CACHE_EXPIRE_TIME
+            )
         if helper:
             assert issubclass(helper, ResultBaseHelper)
 
