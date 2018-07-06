@@ -4,6 +4,7 @@ from ..logging import set_loglevel, Logger
 from ..arg import _arg_parse_common
 from ..cache import IStor
 from .tests.generic import run as run_generic_test
+from ..data import DStorBase
 
 from configparser import ConfigParser
 
@@ -52,6 +53,7 @@ def _argparse(parser):
     parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
     parser.add_argument('-list', action = 'store_true', help = 'List cache')
     parser.add_argument('-test', action = 'store_true', help = 'Run tests')
+    parser.add_argument('--cache', type = str, nargs = '?', help = 'Cache sqlite3 database')
     parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
     parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
     parser.add_argument('query', nargs = '*')
@@ -88,24 +90,31 @@ def do_query(context, q = None, machine = False, fmt = None, **kwargs):
     _do_print(r, machine, fmt)
 
 
-def lookup_show(*args, embed = None, **kwargs):
+def lookup_show(*args, a = None, embed = None, **kwargs):
 
     e = [
         'nextepisode',
         'previousepisode'
     ]
 
-    if embed:
-        e.extend(embed)
+    if a.get('e'):
+        e.extend(['episodes'])
+
+    if a:
+        fmt = a.get('f')
+        machine = a.get('machine')
 
     do_query(
         *args,
         embed = e,
+        fmt = fmt,
+        machine = machine,
+        helper = GenericShowHelper,
         **kwargs
     )
 
 
-def do_list(cache, **kwargs):
+def do_list(cache = None, **kwargs):
     for v in cache.getall('shows'):
         result = Result(
             json.loads(v['data']),
@@ -115,56 +124,43 @@ def do_list(cache, **kwargs):
         _do_print(result, **kwargs)
 
 
-def _do_search(qs, a, cache, **kwargs):
+def _do_search(qs, a, **kwargs):
 
     if a['i']:
         lookup_show(
             LookupContext,
+            a = a,
             q = qs,
-            machine = a['machine'],
-            fmt = a['f'],
             mode = 'tvmaze',
-            embed = ['episodes'] if a['e'] else None,
-            helper = GenericShowHelper,
-            cache = cache,
             **kwargs
         )
     elif (a['l'] != None):
         lookup_show(
             LookupContext,
             q = qs,
-            machine = a['machine'],
-            fmt = a['f'],
+            a = a,
             mode = a['l'],
-            embed = ['episodes'] if a['e'] else None,
-            helper = GenericShowHelper,
-            cache = cache,
             **kwargs
         )
     elif (a['p'] == True):
         do_query(
             PeopleContext,
             q = qs,
-            fmt = a['f'],
-            machine = a['machine'],
-            cache = cache,
+            fmt = a.get('f'),
+            machine = a.get('machine'),
             **kwargs
         )
     else:
         lookup_show(
             SearchContext,
             mode = SEARCH_MODE_MULTI if a['m'] else SEARCH_MODE_SINGLE,
+            a = a,
             q = qs,
-            machine = a['machine'],
-            fmt = a['f'],
-            embed = ['episodes'] if a['e'] else None,
-            helper = GenericShowHelper,
-            cache = cache,
             **kwargs
         )
 
 
-def _invoke_search(qs, a, cache):
+def _invoke_search(qs, a, **kwargs):
 
     if a['b'] != None:
         if a['rate_limit'] != None:
@@ -184,7 +180,6 @@ def _invoke_search(qs, a, cache):
         _rlst = rlst(rate_limit)
 
         def rlcallback(rlst):
-
             while rlst._rlcounter / (time.monotonic() - rlst._last_rlcheck) > rlst.rate_limit:
                 time.sleep(0.03)
 
@@ -199,8 +194,7 @@ def _invoke_search(qs, a, cache):
 
                 try:
                     sr += 1
-                    # pt = time.monotonic()
-                    _do_search(l, a, cache, rlcallback = lambda: rlcallback(_rlst))
+                    _do_search(l, a, rlcallback = lambda: rlcallback(_rlst), **kwargs)
                 except BaseNotFoundException as e:
                     logger.error(e)
     else:
@@ -208,10 +202,10 @@ def _invoke_search(qs, a, cache):
         if (len(qs) == 0):
             raise Exception("Missing query")
 
-        _do_search(qs, a, cache)
+        _do_search(qs, a, **kwargs)
 
 
-def _main(a, config, cache):
+def _main(a, config, cache = None, **kwargs):
 
     embed = []
 
@@ -222,7 +216,7 @@ def _main(a, config, cache):
         do_list(
             cache,
             machine = a['machine'],
-            fmt = a['f'],
+            fmt = a['f']
         )
     elif a['s'] == True:
         do_query(
@@ -232,8 +226,7 @@ def _main(a, config, cache):
             helper = GenericEpisodeHelper
         )
     else:
-
-        _invoke_search(' '.join(a['query']), a, cache)
+        _invoke_search(' '.join(a['query']), a, cache = cache, **kwargs)
 
 
 def main():
@@ -243,24 +236,31 @@ def main():
     )
     _arg_parse_common(parser)
     _argparse(parser)
-    a = vars(parser.parse_known_args()[0])
+    args = DStorBase(vars(parser.parse_known_args()[0]))
 
-    if a['test']:
+    if args.get('test'):
         return run_generic_test()
 
-    if a['d'] == True:
+    if args.get('d') == True:
         set_loglevel(logging.DEBUG)
 
     config = ConfigParser()
-    config.read(a['c'] if a['c'] else CONFIG_FILE)
+    config.read(args['c'] if args['c'] else CONFIG_FILE)
 
-    cache_file = config.get('tvmaze', 'database_file', fallback = None)
+    cache_file = args.get('cache', None)
+
+    if not cache_file:
+        cache_file = config.get(
+            'tvmaze',
+            'database_file',
+            fallback = None
+        )
 
     if cache_file:
         cache = IStor(cache_file, STORAGE_SCHEMA)
 
-        if a['cache_expire']:
-            cache.data['cache_expire_time'] = int(a['cache_expire'])
+        if args.get('cache_expire'):
+            cache.data['cache_expire_time'] = int(args['cache_expire'])
         else:
             cache.data['cache_expire_time'] = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
 
@@ -268,12 +268,16 @@ def main():
         cache = None
 
     try:
-        _main(a, config, cache)
+        _main(args, config, cache = cache)
     except KeyboardInterrupt:
         pass
     except BaseNotFoundException as e:
         logger.error(e)
+    except BaseException as e:
+        logger.exception(e)
+        return 1
     finally:
         if cache:
             cache.close()
 
+    return 0

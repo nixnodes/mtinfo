@@ -152,7 +152,10 @@ class BaseNotFoundException(Exception):
 
 
 class TBaseHTTPError(Exception):
-    pass
+
+    def __init__(self, msg, code):
+        Exception.__init__(self, msg)
+        self.httpcode = code
 
 
 class QueryResult():
@@ -172,13 +175,13 @@ class TBase():
 
     def __init__(self, cache = None, helper = None, rlcallback = None):
 
-        if cache:
+        if cache != None:
             assert isinstance(cache, IStor)
             self.cache_expire_time = cache.data.get(
                 'cache_expire_time',
                 DEFAULT_CACHE_EXPIRE_TIME
             )
-        if helper:
+        if helper != None:
             assert issubclass(helper, ResultBaseHelper)
 
         self.cache = cache
@@ -196,7 +199,7 @@ class TBase():
             raise BaseNotFoundException('Not found')
 
         if r.status_code != 200:
-            raise TBaseHTTPError("Query failed: {}".format(r.status_code))
+            raise TBaseHTTPError("Query failed: {}".format(r.status_code), r.status_code)
 
         return json.loads(r.text)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import sys, logging
+import logging
 
 from ..tvmaze import (
     LookupContext,
@@ -109,4 +109,3 @@ def run():
 
     print("OK: All tests succeeded")
 
-    sys.exit(0)
