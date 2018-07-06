@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 from subprocess import call
 from os import remove
 
@@ -9,7 +7,7 @@ CACHE_FILE = "/tmp/mtinfo_runtests.db"
 def run(s):
     a = s.split(' ')
     o = [
-        "/usr/bin/python3",
+        "python",
         "./mtinfo/tvmaze/run.py",
         "--cache",
         CACHE_FILE
@@ -27,4 +25,8 @@ try:
     run('-list')
     run('-s')
 finally:
-    remove(CACHE_FILE)
+    try:
+        remove(CACHE_FILE)
+    except BaseException as e:
+        print(e)
+        

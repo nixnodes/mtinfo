@@ -10,4 +10,4 @@ python:
 install:
   - pip install .
 # command to run tests
-script: ./runtests.py
+script: python runtests.py
