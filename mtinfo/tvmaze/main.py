@@ -174,12 +174,14 @@ def _invoke_search(qs, a, **kwargs):
 
         class rlst():
 
+            default_rate_limit = 2
+
             def __init__(self, rate_limit):
                 self._last_rlcheck = time.monotonic()
                 self._rlcounter = 0
-                self.rate_limit = rate_limit
+                self.rate_limit = rate_limit if rate_limit else self.default_rate_limit
 
-        _rlst = rlst(a.get('rate_limit', 2))
+        _rlst = rlst(a.get('rate_limit'))
 
         def rlcallback(rlst):
             while rlst._rlcounter / (time.monotonic() - rlst._last_rlcheck) > rlst.rate_limit:
