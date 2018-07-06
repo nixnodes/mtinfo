@@ -57,7 +57,6 @@ def _argparse(parser):
     parser.add_argument('query', nargs = '*')
 
 
-
 def _do_print(r, machine = False, fmt = None):
     if fmt != None:
         if isinstance(r, ResultMulti):
@@ -214,11 +213,6 @@ def _invoke_search(qs, a, cache):
 
 def _main(a, config, cache):
 
-    if a['cache_expire']:
-        cache.data['cache_expire_time'] = int(a['cache_expire'])
-    else:
-        cache.data['cache_expire_time'] = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
-
     embed = []
 
     if a['e']:
@@ -264,6 +258,12 @@ def main():
 
     if cache_file:
         cache = IStor(cache_file, STORAGE_SCHEMA)
+
+        if a['cache_expire']:
+            cache.data['cache_expire_time'] = int(a['cache_expire'])
+        else:
+            cache.data['cache_expire_time'] = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
+
     else:
         cache = None
 
