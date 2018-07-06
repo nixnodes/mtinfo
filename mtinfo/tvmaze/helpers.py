@@ -170,11 +170,11 @@ def print_informative(r):
     elif (r._restype_ == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
             r.local_airtime,
-            r.data.show.name,
+            r.show.name,
             r.name,
             r.season, r.number,
-            r.data.show.type,
-            r.data.show.genres,
+            r.show.type,
+            r.show.genres,
             r.data.runtime,
             r.summary
         ))
