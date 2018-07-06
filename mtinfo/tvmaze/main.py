@@ -197,7 +197,7 @@ def _invoke_search(qs, a, **kwargs):
             except BaseNotFoundException as e:
                 logger.error(e)
 
-            return 0
+            return 1
 
         if a['b'] == '-':
             for line in sys.stdin:
