@@ -6,14 +6,13 @@ from .tvmaze import (
     stamptodt,
 
     RESULT_TYPE_EPISODE,
-    
+
     RESULT_TYPE_PERSON,
     RESULT_TYPE_LOOKUP,
     RESULT_TYPE_SEARCH,
     RESULT_TYPE_SCHEDULE
 )
 from ..misc import strip_tags
-
 
 
 class GenericEpisodeHelper(ResultBaseHelper):
@@ -131,7 +130,6 @@ class GenericShowHelper(ResultBaseHelper):
                     helper = GenericEpisodeHelper
                 ))
             result._bind_key('episodes', o)
-
 
 
 def print_informative(r):

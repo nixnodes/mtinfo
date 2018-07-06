@@ -49,7 +49,7 @@ def _argparse(parser):
     parser.add_argument('-e', action = 'store_true', help = 'Embed episodes in query result')
     parser.add_argument('-m', action = 'store_true', help = 'Multiple results on search')
     parser.add_argument('-f', type = str, nargs = '?', help = 'Format output')
-    parser.add_argument('-c', type = str, nargs = '?', help = 'Config file')
+    parser.add_argument('-config', type = str, nargs = '?', help = 'Config file')
     parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
     parser.add_argument('-list', action = 'store_true', help = 'List cache')
     parser.add_argument('-test', action = 'store_true', help = 'Run tests')
@@ -235,7 +235,7 @@ def _main(a, config, cache = None, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(
-        conflict_handler = 'resolve',
+        # conflict_handler = 'resolve',
         # allow_abbrev = False
     )
     _arg_parse_common(parser)
