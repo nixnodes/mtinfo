@@ -1,5 +1,5 @@
 from subprocess import call
-from os import remove
+from os import remove, path
 
 CACHE_FILE = "/tmp/mtinfo_runtests.db"
 
@@ -26,7 +26,7 @@ try:
     run('-s')
 finally:
     try:
-        remove(CACHE_FILE)
+        if path.exists(CACHE_FILE):
+            remove(CACHE_FILE)
     except BaseException as e:
         print(e)
-        

@@ -17,8 +17,11 @@ setup(
         'mtinfo.tvmaze.tests'
     ],
     install_requires = [
-        'requests>=2.18',
+        'requests',
     ],
+    extras_require = {
+        ':"linux" in sys_platform':  ["coloredlogs"]
+    },
     entry_points = {
         'console_scripts': [
             'tvmaze=mtinfo.tvmaze.main:main',
