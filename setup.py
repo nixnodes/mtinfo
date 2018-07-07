@@ -27,7 +27,8 @@ setup(
     },
     entry_points = {
         'console_scripts': [
-            'tvmaze=mtinfo.tvmaze.main:main',
+            'tvmaze=mtinfo.loader:tvmaze',
+            'mtirc=mtinfo.loader:irc',
         ],
     },
     classifiers = (

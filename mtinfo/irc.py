@@ -8,51 +8,59 @@ from .logging import Logger
 logger = Logger(__name__)
 
 
-class MTBot(pydle.Client):
+class Client(pydle.Client):
 
     RECONNECT_MAX_ATTEMPTS = None
     MT_DELIMITERS = '.'
     PING_INTERVAL = 90
 
-    def __init__(self, *args, options = None, cp = None, **kwargs):
+    def __init__(self, *args, options = None, **kwargs):
 
         if options != None:
             assert isinstance(options, dict)
 
-        if cp != None:
-            assert issubclass(cp.__class__, BaseCommandProcessor)
-
-        super(MTBot, self).__init__(*args, **kwargs)
-
-        if hasattr(self, 'options'):
-            raise Exception('C-C-C')
+        super(Client, self).__init__(*args, **kwargs)
 
         self.options = DStorBase(options)
 
-        self._mt_cp = cp
+        self.__mt_cpa = []
 
-        self._reconnect_handler = None
-        self._pinger_handle = None
+        self.__reconnect_handler = None
+        self.__pinger_handle = None
+
+    def register_command_processor(self, cp):
+        assert issubclass(cp.__class__, BaseCommandProcessor)
+
+        for v in self.__mt_cpa:
+            if v.__class__ == cp.__class__:
+                raise Exception('Command processor already registered')
+
+        self.__mt_cpa.append(cp)
+
+    def unregister_command_processor(self, cp):
+        self.__mt_cpa.remove(cp)
 
     def on_connect(self):
         super().on_connect()
         self._reconnect_attempts = 0
-        self._do_ping()
+        if self.PING_INTERVAL > 0:
+            self.__do_ping()
 
-    def _do_ping(self):
+    def __do_ping(self):
         if self.connected:
             self.rawmsg('PING', str(int(time.time())))
-            self._pinger_handle = self.eventloop.schedule_in(self.PING_INTERVAL, self._do_ping)
+            self.__pinger_handle = self.eventloop.schedule_in(self.PING_INTERVAL, self.__do_ping)
 
     def on_message(self, source, target, message):
         # self.message(target, message)
 
-        if not self._mt_cp:
+        if not self.__mt_cpa:
             return
 
         if self.is_channel(source):
             if not self.in_channel(source):
                 return
+
         elif self.is_same_nick(source, self.nickname):
             source = target
 
@@ -65,7 +73,9 @@ class MTBot(pydle.Client):
         c = message.split(' ')
         q = c.pop(0)[1:]
 
-        self._mt_cp.run(self, q, c, source, target)
+        for v in self.__mt_cpa:
+            if v.run(self, q, c, source, target):
+                break
 
     def on_raw_pong(self, source):
         pass
@@ -76,9 +86,9 @@ class MTBot(pydle.Client):
                 self.eventloop.schedule_in(5, lambda: self.join(channel) if self.connected else None)
 
     def on_disconnect(self, expected):
-        if self._pinger_handle != None:
-            self.eventloop.unschedule(self._pinger_handle)
-            self._pinger_handle = None
+        if self.__pinger_handle != None:
+            self.eventloop.unschedule(self.__pinger_handle)
+            self.__pinger_handle = None
 
         if not self._reconnect_handler:
             if not expected:
@@ -109,10 +119,48 @@ class BaseCommandProcessor():
     def run(self, client, q, c, source, target):
         f = getattr(self, 'cmd_' + q, None)
         if f == None or not callable(f):
-            return
+            return False
 
         try:
             f(client, source, target, *c)
         except BaseException as e:
             logger.exception('Exception while executing command: {}'.format(e))
+
+        return True
+
+
+def run_client(parser, config, cache = None, cpcs = None):
+
+    assert cpcs and isinstance(cpcs, list)
+
+    args = DStorBase(vars(parser.parse_known_args()[0]))
+
+    server = config.get('irc', 'server')
+
+    port = int(config.get('irc', 'port', fallback = 6667))
+    tls = bool(config.get('irc', 'tls', fallback = False))
+    tls_verify = bool(config.get('irc', 'tls_verify', fallback = False))
+
+    channels = config.get('irc', 'channels')
+    channels = channels.split(',')
+
+    client = Client(
+        config.get('irc', 'nick', fallback = 'mtbot'),
+        realname = 'mtbot',
+        username = 'mtbot',
+        options = dict(config.items('irc'))
+    )
+
+    for v in cpcs:
+        client.register_command_processor(v)
+
+    client.connect(
+        server,
+        port,
+        tls = tls,
+        tls_verify = tls_verify,
+        channels = channels
+    )
+
+    client.handle_forever()
 

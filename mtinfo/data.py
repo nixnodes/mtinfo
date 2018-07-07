@@ -33,8 +33,8 @@ class Flags():
 class DStorBase():
 
     def __init__(self, data = None):
-        self._datastor = copy.deepcopy(data) if isinstance(data, dict) else {}
-        self._datastor_lock = threading.RLock()
+        self.__datastor = copy.deepcopy(data) if isinstance(data, dict) else {}
+        self.__datastor_lock = threading.RLock()
 
     def __contains__(self, key):
         return self.has(key)
@@ -49,67 +49,67 @@ class DStorBase():
         self.set(key, value)
 
     def __len__(self):
-        return len(self._datastor)
+        return len(self.__datastor)
 
     def __iter__(self):
-        return iter(self._datastor.values())
+        return iter(self.__datastor.values())
 
     def __enter__(self):
-        self._datastor_lock.acquire()
+        self.__datastor_lock.acquire()
 
     def __exit__(self, *a):
-        self._datastor_lock.release()
-        
+        self.__datastor_lock.release()
+
     def __str__(self):
-        return str(self._datastor)
+        return str(self.__datastor)
 
     def keys(self):
-        return self._datastor.keys()
+        return self.__datastor.keys()
 
     def items(self):
-        return self._datastor.items()
+        return self.__datastor.items()
 
     def values(self):
-        return self._datastor.values()
+        return self.__datastor.values()
 
     def get(self, key , default = None):
-        with self._datastor_lock:
-            if key in self._datastor:
-                return self._datastor[key]
+        with self.__datastor_lock:
+            if key in self.__datastor:
+                return self.__datastor[key]
             else:
                 return default
 
     def has(self, key):
-        with self._datastor_lock:
-            return key in self._datastor
+        with self.__datastor_lock:
+            return key in self.__datastor
 
     def mod(self, key, val):
-        with self._datastor_lock:
-            self._datastor[key] += val
+        with self.__datastor_lock:
+            self.__datastor[key] += val
 
     def set(self, key, data):
-        with self._datastor_lock:
-            self._datastor[key] = data
-            
+        with self.__datastor_lock:
+            self.__datastor[key] = data
+
     def create(self, key, data):
-        with self._datastor_lock:
-            if not key in self._datastor:
-                self._datastor[key] = data
+        with self.__datastor_lock:
+            if not key in self.__datastor:
+                self.__datastor[key] = data
 
     def setdict(self, data):
-        self._datastor = data
+        self.__datastor = data
 
     def getdict(self):
-        with self._datastor_lock:
-            return copy.copy(self._datastor)
+        with self.__datastor_lock:
+            return copy.copy(self.__datastor)
 
     def delete(self, key):
-        with self._datastor_lock:
-            if key in self._datastor:
-                del self._datastor[key]
+        with self.__datastor_lock:
+            if key in self.__datastor:
+                del self.__datastor[key]
 
     def clear(self):
-        self._datastor = {}
+        self.__datastor = {}
 
 
 class DataStorage(DStorBase):
@@ -118,13 +118,13 @@ class DataStorage(DStorBase):
         DStorBase.__init__(self, data)
 
     def get_lock(self):
-        return self._datastor_lock
+        return self.__datastor_lock
 
     def get_size(self):
-        with self._datastor_lock:
-            return len(self._datastor)
+        with self.__datastor_lock:
+            return len(self.__datastor)
 
     def get_copy(self):
-        with self._datastor_lock:
-            return copy.deepcopy(self._datastor)
+        with self.__datastor_lock:
+            return copy.deepcopy(self.__datastor)
 

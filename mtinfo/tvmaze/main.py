@@ -1,17 +1,9 @@
-import logging, argparse, json, time, sys
+import json, time, sys
 
-from ..logging import set_loglevel, Logger
-from ..arg import _arg_parse_common
-from ..cache import IStor
+from ..logging import Logger
+
 from .tests.generic import run as run_generic_test
 from ..data import DStorBase
-
-from ..irc import MTBot
-from .irc import TVMazeIRCCP
-
-from configparser import ConfigParser
-
-CONFIG_FILE = '/etc/mtinfo.conf'
 
 from .tvmaze import (
     SearchContext,
@@ -31,7 +23,6 @@ from .tvmaze import (
 
     ResultJSONEncoder,
 
-    STORAGE_SCHEMA
 )
 
 from .helpers import (
@@ -44,25 +35,12 @@ logger = Logger(__name__)
 
 
 def _argparse(parser):
-    parser.add_argument('-machine', action = 'store_true', help = 'Machine-readable output')
     parser.add_argument('-l', type = str, nargs = '?', help = 'Lookup by foreign ID [imdb|tvrage|thetvdb]')
     parser.add_argument('-i', action = 'store_true', help = 'Lookup by ID')
     parser.add_argument('-s', action = 'store_true', help = 'Today\'s schedule (US)')
     parser.add_argument('-p', action = 'store_true', help = 'Search people')
     parser.add_argument('-e', action = 'store_true', help = 'Embed episodes in query result')
     parser.add_argument('-m', action = 'store_true', help = 'Multiple results on search')
-    parser.add_argument('-f', type = str, nargs = '?', help = 'Format output')
-    parser.add_argument('-config', type = str, nargs = '?', help = 'Config file')
-    parser.add_argument('-b', type = str, nargs = '?', help = 'Batch file')
-    parser.add_argument('-list', action = 'store_true', help = 'List cache')
-    parser.add_argument('-test', action = 'store_true', help = 'Run tests')
-    parser.add_argument('-ircbot', action = 'store_true', help = '')
-    parser.add_argument('-sort', type = str, nargs = '?', help = '')
-    parser.add_argument('-order', type = str, nargs = '?', help = '')
-    parser.add_argument('--cache', type = str, nargs = '?', help = 'Cache sqlite3 database')
-    parser.add_argument('--cache_expire', type = int, nargs = '?', help = 'Cache expiration time')
-    parser.add_argument('--rate_limit', type = str, nargs = '?', help = 'Query rate limit')
-    parser.add_argument('query', nargs = '*')
 
 
 def _do_print(r, machine = False, fmt = None):
@@ -179,7 +157,7 @@ def _invoke_search(qs, a, **kwargs):
             def __init__(self, rate_limit):
                 self._last_rlcheck = time.monotonic()
                 self._rlcounter = 0
-                self.rate_limit = rate_limit if rate_limit else self.default_rate_limit
+                self.rate_limit = rate_limit if rate_limit != None else self.default_rate_limit
 
         _rlst = rlst(a.get('rate_limit'))
 
@@ -216,39 +194,7 @@ def _invoke_search(qs, a, **kwargs):
         _do_search(qs, a, **kwargs)
 
 
-def _run_irc_client(args, config, cache = None):
-
-    server = config.get('irc', 'server')
-
-    port = int(config.get('irc', 'port', fallback = 6667))
-    tls = bool(config.get('irc', 'tls', fallback = False))
-    tls_verify = bool(config.get('irc', 'tls_verify', fallback = False))
-
-    channels = config.get('irc', 'channels')
-    channels = channels.split(',')
-
-    client = MTBot(
-        config.get('irc', 'nick', fallback = 'mtbot'),
-        realname = 'mtbot',
-        username = 'mtbot',
-        cp = TVMazeIRCCP(cache),
-        options = dict(config.items('irc'))
-    )
-    client.connect(
-        server,
-        port,
-        tls = tls,
-        tls_verify = tls_verify,
-        channels = channels
-    )
-
-    client.handle_forever()
-
-
 def _main(a, config, cache = None, **kwargs):
-
-    if a['ircbot']:
-        return _run_irc_client(a, config, cache)
 
     embed = []
 
@@ -274,45 +220,12 @@ def _main(a, config, cache = None, **kwargs):
         _invoke_search(' '.join(a['query']), a, cache = cache, **kwargs)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        # conflict_handler = 'resolve',
-        # allow_abbrev = False
-    )
-    _arg_parse_common(parser)
+def main(parser, config, cache = None):
     _argparse(parser)
     args = DStorBase(vars(parser.parse_known_args()[0]))
 
     if args.get('test'):
         return run_generic_test()
-
-    if args.get('d') == True:
-        set_loglevel(logging.DEBUG)
-
-    config = ConfigParser()
-    config.read(args['c'] if args['c'] else CONFIG_FILE)
-
-    cache_file = args.get('cache', None)
-
-    if not cache_file:
-        cache_file = config.get(
-            'tvmaze',
-            'database_file',
-            fallback = None
-        )
-
-    if cache_file:
-        cache = IStor(cache_file, STORAGE_SCHEMA)
-
-        logger.debug('Cache initialized')
-
-        if args.get('cache_expire'):
-            cache.data['cache_expire_time'] = int(args['cache_expire'])
-        else:
-            cache.data['cache_expire_time'] = config.getint('tvmaze', 'cache_expire_time', fallback = 86400)
-
-    else:
-        cache = None
 
     try:
         _main(args, config, cache = cache)

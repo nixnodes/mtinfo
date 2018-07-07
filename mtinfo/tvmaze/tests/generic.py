@@ -9,7 +9,6 @@ from ..tvmaze import (
     ResultMulti,
     SEARCH_MODE_SINGLE,
     SEARCH_MODE_MULTI,
-    STORAGE_SCHEMA,
     BaseNotFoundException,
     TBaseHTTPError
 )
@@ -22,6 +21,8 @@ from ..helpers import (
 
 from ...cache import IStor
 from ...logging import set_loglevel
+
+from ...istor_schema import get as schema_get
 
 
 def query(context, query = None):
@@ -49,7 +50,7 @@ def run():
 
     set_loglevel(logging.DEBUG)
 
-    cache = IStor("/tmp/tvmaze.db", STORAGE_SCHEMA)
+    cache = IStor("/tmp/mtinfo.db", schema_get())
 
     context = LookupContext(
         mode = 'tvmaze',

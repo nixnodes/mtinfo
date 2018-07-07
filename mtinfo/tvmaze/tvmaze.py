@@ -12,7 +12,9 @@ RESULT_TYPE_SCHEDULE = 3
 RESULT_TYPE_LOOKUP = 4
 RESULT_TYPE_EPISODE = 5
 
-STORAGE_SCHEMA = {
+from ..istor_schema import update as schema_update
+
+schema_update({
     'shows': [
         { 'k' : 'id', 't': 'integer', 'f': 'index'},
         { 'k' : 'td', 't': 'integer', 'f': 'number'},
@@ -24,7 +26,7 @@ STORAGE_SCHEMA = {
         { 'k' : 'rating', 't': 'real', 'f': 'number', 'd': 0},
         { 'k' : 'data', 't': 'text', 'f': 'text'},
     ],
-}
+})
 
 logger = Logger(__name__)
 

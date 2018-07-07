@@ -1,4 +1,4 @@
-from ..irc import MTBot, BaseCommandProcessor
+from ..irc import BaseCommandProcessor
 from .tvmaze import SearchContext, SEARCH_MODE_SINGLE, ResultMulti
 from .helpers import GenericShowHelper
 
