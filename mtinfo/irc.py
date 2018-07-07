@@ -133,8 +133,6 @@ def run_client(parser, config, cache = None, cpcs = None):
 
     assert cpcs and isinstance(cpcs, list)
 
-    args = DStorBase(vars(parser.parse_known_args()[0]))
-
     server = config.get('irc', 'server')
 
     port = int(config.get('irc', 'port', fallback = 6667))

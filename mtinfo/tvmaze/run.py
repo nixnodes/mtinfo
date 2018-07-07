@@ -1,5 +1,4 @@
-import mtinfo.tvmaze.main as main
+from mtinfo.loader import tvmaze
 import sys
 
-sys.exit(main.main())
-
+sys.exit(tvmaze())
