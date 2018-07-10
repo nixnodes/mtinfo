@@ -111,7 +111,7 @@ class Client(pydle.Client):
         q = c.pop(0)[1:]
 
         for v in self.__mt_cpa:
-            if v.run(self, q, c, source, target):
+            if (yield v.run(self, q, c, source, target)):
                 break
 
     def on_raw_pong(self, source):
