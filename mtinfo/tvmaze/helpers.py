@@ -14,6 +14,37 @@ from .tvmaze import (
 )
 from ..misc import strip_tags
 
+import datetime, calendar, time
+
+
+def convert_timedelta(seconds):
+    # seconds = seconds
+    d = datetime.datetime(1, 1, 1) + datetime.timedelta(seconds = int(abs(seconds)))
+
+    if seconds < 0:
+        return -d.day + 1, -d.hour, -d.minute, -d.second
+    else:
+        return d.day - 1, d.hour, d.minute, d.second
+
+
+def fmt_time(seconds):
+    td = int(seconds)
+    days, hours, minutes, seconds = convert_timedelta(td)
+
+    o = ''
+    if days != 0:
+        o += '{}d '.format(days)
+
+    if hours != 0:
+        o += '{}h '.format(hours)
+
+    o += '{}m'.format(minutes)
+    return o
+
+
+def deltat(airstamp):
+    return calendar.timegm(stamptodt(airstamp).utctimetuple()) - time.time()
+
 
 class GenericEpisodeHelper(ResultBaseHelper):
     keys = [
@@ -22,7 +53,9 @@ class GenericEpisodeHelper(ResultBaseHelper):
         'season',
         'number',
         'local_airtime',
-        'summary'
+        'local_airtime_d',
+        'summary',
+        'eta'
     ]
 
     def do(self, result):
@@ -42,6 +75,8 @@ class GenericEpisodeHelper(ResultBaseHelper):
 
         if result.data.airstamp:
             result._bind_key('local_airtime', stamptodt(result.data.airstamp).strftime("%d-%m-%Y at %H:%M"))
+            result._bind_key('eta', fmt_time(deltat(result.data.airstamp)))
+            result._bind_key('local_airtime_d', '{} (in {})'.format(result.local_airtime, result.eta))
 
         if result.data.summary:
             result._bind_key(
@@ -77,12 +112,16 @@ class GenericShowHelper(ResultBaseHelper):
     def format_episode_info(self, d):
         if not d:
             return d
+
         return (
             "{}x{} {} on {}".format(
                 d.season,
                 d.number,
                 d.name,
-                stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z")
+                '{} (in {})'.format(
+                    stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z"),
+                    fmt_time(deltat(d.airstamp))
+                )
             )
         )
 
@@ -126,7 +165,7 @@ class GenericShowHelper(ResultBaseHelper):
             result.data._embedded.nextepisode
         ))
 
-        #if result.data._embedded.nextepisode:
+        # if result.data._embedded.nextepisode:
         #   result._bind_key('nextepisode_airstamp', stamptodt(
         #        result.data._embedded.nextepisode
         #    ))
@@ -186,7 +225,7 @@ def print_informative(r):
         ))
     elif (r._restype_ == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            r.local_airtime,
+            r.local_airtime_d,
             r.show.name,
             r.name,
             r.season, r.number,

@@ -1,11 +1,21 @@
 from ..irc import BaseCommandProcessor
-from .tvmaze import SearchContext, LookupContext, SEARCH_MODE_SINGLE, ResultMulti, stamptodt
-from .helpers import GenericShowHelper
+from .tvmaze import (
+    SearchContext,
+    LookupContext,
+    ScheduleContext,
+
+    SEARCH_MODE_SINGLE,
+
+    ResultMulti,
+
+    stamptodt
+)
+from .helpers import GenericShowHelper, GenericEpisodeHelper, fmt_time
 from ..logging import Logger
 
 from ..istor_schema import update as schema_update
 
-import json, time, calendar, datetime
+import json, time, calendar
 import pydle
 
 logger = Logger(__name__)
@@ -28,6 +38,7 @@ executor = concurrent.futures.ThreadPoolExecutor(8)
 class TVMazeIRCCP(BaseCommandProcessor):
 
     FORMAT_SHOW = '{name} / {rating}'
+    FORMAT_SCHEDULE = '{name}'
 
     WATCH_REMINDER_INTERVAL = 3600
 
@@ -59,6 +70,12 @@ class TVMazeIRCCP(BaseCommandProcessor):
             helper = GenericShowHelper,
             cache = self.cache
         ).query(q)
+
+    @pydle.coroutine
+    def get_schedule(self):
+        return ScheduleContext(
+            helper = GenericEpisodeHelper
+        ).query(None)
 
     @pydle.coroutine
     def get_show(self, client, source, *args):
@@ -236,27 +253,6 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
         client.message(source, 'Removed \'{}\' from watchlist'.format(result.name))
 
-    def convert_timedelta(self, duration):
-        seconds = duration.seconds
-        hours = (seconds % 86400) // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = (seconds % 60)
-        return hours, minutes, seconds
-
-    def fmt_time(self, seconds):
-        td = datetime.timedelta(seconds = seconds)
-        hours, minutes, seconds = self.convert_timedelta(td)
-
-        o = ''
-        if td.days > 0:
-            o += '{}d '.format(td.days)
-
-        if hours > 0:
-            o += '{}h '.format(hours)
-
-        o += '{}m'.format(minutes)
-        return o
-
     @pydle.coroutine
     def watchlist_list(self, client, source, nick):
         user = client.users[nick]
@@ -279,7 +275,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
             if result.nextepisode:
                 deltat = calendar.timegm(stamptodt(result.data._embedded.nextepisode.airstamp).utctimetuple()) - time.time()
-                o += ' | Next: {} (in {})'.format(result.nextepisode, self.fmt_time(deltat))
+                o += ' | Next: {} (in {})'.format(result.nextepisode, fmt_time(deltat))
 
             client.message(source, o)
 
@@ -331,7 +327,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
             client.message(source, result.format(fmt))
 
     @pydle.coroutine
-    def cmd_watch(self, client, source , nick, *args):
+    def cmd_watch(self, client, source, nick, *args):
 
         if not args or not args[0]:
             self.watchlist_list(client, source, nick)
@@ -344,4 +340,19 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 yield self.watchlist_remove(client, source, nick, *args[1:])
             elif c == 'list':
                 yield self.watchlist_list(client, source, nick)
+
+    @pydle.coroutine
+    def cmd_today(self, client, source, nick, *args):
+
+        data = (yield executor.submit(self.get_schedule)).result()
+
+        for v in data:
+            fmt = client.options.get('schedule_format')
+            if not fmt:
+                fmt = self.FORMAT_SCHEDULE
+
+            client.message(
+                source,
+                v.format(fmt)
+            )
 
