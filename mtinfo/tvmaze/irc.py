@@ -295,9 +295,6 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if not fmt:
                 fmt = self.FORMAT_WATCHLIST
 
-            if v._nextepisode:
-                print(_deltat(v._nextepisode.data.airstamp))
-
             client.message(source, v.format(fmt))
 
     @pydle.coroutine
