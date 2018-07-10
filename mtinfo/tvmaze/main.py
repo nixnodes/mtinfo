@@ -1,4 +1,4 @@
-import json, time, sys
+import json, sys
 
 from ..logging import Logger
 
@@ -22,6 +22,8 @@ from .tvmaze import (
     SEARCH_MODE_MULTI,
 
     ResultJSONEncoder,
+    
+    rlst
 
 )
 
@@ -150,22 +152,9 @@ def _invoke_search(qs, a, **kwargs):
 
         sr = 0
 
-        class rlst():
-
-            default_rate_limit = 2
-
-            def __init__(self, rate_limit):
-                self._last_rlcheck = time.monotonic()
-                self._rlcounter = 0
-                self.rate_limit = rate_limit if rate_limit != None else self.default_rate_limit
-
+       
         _rlst = rlst(a.get('rate_limit'))
 
-        def rlcallback(rlst):
-            while rlst._rlcounter / (time.monotonic() - rlst._last_rlcheck) > rlst.rate_limit:
-                time.sleep(0.03)
-
-            rlst._rlcounter += 1
 
         def procline(l):
             l = l.rstrip()
@@ -173,7 +162,7 @@ def _invoke_search(qs, a, **kwargs):
                 return 0
 
             try:
-                _do_search(l, a, rlcallback = lambda: rlcallback(_rlst), **kwargs)
+                _do_search(l, a, rlc = _rlst, **kwargs)
             except BaseNotFoundException as e:
                 logger.error(e)
 

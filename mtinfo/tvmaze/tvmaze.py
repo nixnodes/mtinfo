@@ -168,6 +168,33 @@ class QueryResult():
         self.cached = cached
 
 
+class rlst():
+
+    DEFAULT_RATE_LIMIT = 2
+
+    def __init__(self, rate_limit = DEFAULT_RATE_LIMIT):
+        self.__last_rlcheck = time.monotonic()
+        self.__rlcounter = 0
+        self.rate_limit = rate_limit if rate_limit != None else self.DEFAULT_RATE_LIMIT
+
+    # def clear(self):
+    #    self.__last_rlcheck = time.monotonic()
+
+    def sleep(self, timeout):
+        time.sleep(timeout)
+
+    def run(self):
+
+        if time.monotonic() - self.__last_rlcheck > 1:
+            self.__last_rlcheck = time.monotonic()
+            self.__rlcounter = 0
+
+        while self.__rlcounter / (time.monotonic() - self.__last_rlcheck) > self.rate_limit:
+            self.sleep(0.03)
+
+        self.__rlcounter += 1
+
+
 DEFAULT_CACHE_EXPIRE_TIME = 86400
 
 
@@ -176,28 +203,37 @@ class TBase():
     clpair = None
     rclass = Result
 
-    def __init__(self, cache = None, helper = None, rlcallback = None):
+    def __init__(self, cache = None, helper = None, rlc = None, cache_expire_time = None):
 
         if cache != None:
             assert isinstance(cache, IStor)
-            self.cache_expire_time = cache.data.get(
-                'cache_expire_time',
-                DEFAULT_CACHE_EXPIRE_TIME
-            )
+            if cache_expire_time != None:
+                self.cache_expire_time = cache_expire_time
+            else:
+                self.cache_expire_time = cache.data.get(
+                    'cache_expire_time',
+                    DEFAULT_CACHE_EXPIRE_TIME
+                )
         else:
             self.cache_expire_time = DEFAULT_CACHE_EXPIRE_TIME
 
         if helper != None:
             assert issubclass(helper, ResultBaseHelper)
 
+        if rlc != None:
+            assert isinstance(rlc, rlst) or issubclass(rlc, rlst)
+
         self.cache = cache
         self.helper = helper
-        self._rlcallback = rlcallback
+
+        self.__rlc = rlc
+
+        # self._rlcallback = rlcallback
 
     def httpfetch(self, query = None):
 
-        if self._rlcallback:
-            self._rlcallback()
+        if self.__rlc:
+            self.__rlc.run()
 
         r = requests.get(self.URL.format(query))
 

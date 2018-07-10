@@ -8,6 +8,8 @@ from .tvmaze import (
 
     ResultMulti,
 
+    rlst
+
 )
 from .helpers import (
     GenericShowHelper,
@@ -23,7 +25,7 @@ import pydle
 
 logger = Logger(__name__)
 
-from tornado import gen, concurrent
+from tornado import concurrent
 
 schema_update({
     'irc_watchlist': [
@@ -51,9 +53,11 @@ class TVMazeIRCCP(BaseCommandProcessor):
         self.cache = cache
         self.__last_wr_check = time.monotonic()
         self.__wrsched_handle = None
+        self.__rlc = rlst()
 
     @pydle.coroutine
-    def get_show_by_id(self, tvmazeid):
+    def get_show_by_id(self, tvmazeid, cache_expire_time = None):
+
         return LookupContext(
             mode = 'tvmaze',
             embed = [
@@ -61,11 +65,13 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 'previousepisode'
             ],
             helper = GenericShowHelper,
-            cache = self.cache
+            cache = self.cache,
+            cache_expire_time = cache_expire_time,
+            rlc = self.__rlc
         ).query(str(tvmazeid))
 
     @pydle.coroutine
-    def get_show_by_name(self, q):
+    def get_show_by_name(self, q, cache_expire_time = None):
         return SearchContext(
             mode = SEARCH_MODE_SINGLE,
             embed = [
@@ -73,7 +79,9 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 'previousepisode'
             ],
             helper = GenericShowHelper,
-            cache = self.cache
+            cache = self.cache,
+            cache_expire_time = cache_expire_time,
+            rlc = self.__rlc
         ).query(q)
 
     @pydle.coroutine
@@ -113,16 +121,13 @@ class TVMazeIRCCP(BaseCommandProcessor):
         )
 
     @pydle.coroutine
-    def lookup_async(self, f, *args):
+    def lookup_async(self, f, *args, **kwargs):
         try:
-            result = (yield executor.submit(f, *args)).result()
-            if result.is_cached:
-                return result
+            result = (yield executor.submit(f, *args, **kwargs)).result()
         except BaseException as e:
             logger.exception(e)
-            result = False
+            result = None
 
-        yield gen.sleep(0.5)
         return result
 
     @pydle.coroutine
@@ -142,7 +147,11 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if i != None and k != i:
                 continue
 
-            result = yield self.lookup_async(self.get_show_by_id, v['id'])
+            result = yield self.lookup_async(
+                self.get_show_by_id,
+                v['id'],
+                cache_expire_time = 0
+            )
 
             if not result or not result._nextepisode:
                 continue
@@ -173,9 +182,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 return
             nick = user['nickname']
 
-            fmt = client.options.get('watch_reminder_format')
-            if not fmt:
-                fmt = self.FORMAT_WATCH_REMINDER
+            fmt = client.options.get(
+                'watch_reminder_format',
+                self.FORMAT_WATCH_REMINDER
+            )
 
             client.message(nick, ':: Watch reminder ::')
             for v in e:
@@ -291,9 +301,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
         o = sorted(o, key = lambda x: _deltat(x._nextepisode.data.airstamp) if x._nextepisode else sys.maxsize, reverse = False)
 
         for v in o:
-            fmt = client.options.get('watchlist_format')
-            if not fmt:
-                fmt = self.FORMAT_WATCHLIST
+            fmt = client.options.get(
+                'watchlist_format',
+                self.FORMAT_WATCHLIST
+            )
 
             client.message(source, v.format(fmt))
 
@@ -321,7 +332,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 client.eventloop.unschedule(self.__wrsched_handle)
                 self.__wrsched_handle = None
 
-            self.__wrsched_handle = client.eventloop.schedule_in(15, self.schedule_wr_users, client, nick)
+            self.__wrsched_handle = client.eventloop.schedule_in(3, self.schedule_wr_users, client, nick)
 
         else:
             user = client.users[nick]
@@ -334,9 +345,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
         result = yield self.get_show(client, source, *args)
 
-        fmt = client.options.get('show_format')
-        if not fmt:
-            fmt = self.FORMAT_SHOW
+        fmt = client.options.get(
+            'show_format',
+            self.FORMAT_SHOW
+        )
 
         if isinstance(result, ResultMulti):
             for v in result:
@@ -365,9 +377,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
         data = (yield executor.submit(self.get_schedule)).result()
 
         for v in data:
-            fmt = client.options.get('schedule_format')
-            if not fmt:
-                fmt = self.FORMAT_SCHEDULE
+            fmt = client.options.get(
+                'schedule_format',
+                self.FORMAT_SCHEDULE
+            )
 
             client.message(
                 source,
