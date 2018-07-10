@@ -10,15 +10,15 @@ from .tvmaze import (
 
 )
 from .helpers import (
-    GenericShowHelper, 
-    GenericEpisodeHelper, 
+    GenericShowHelper,
+    GenericEpisodeHelper,
     deltat as _deltat
 )
 from ..logging import Logger
 
 from ..istor_schema import update as schema_update
 
-import json, time
+import json, time, sys
 import pydle
 
 logger = Logger(__name__)
@@ -45,7 +45,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
     FORMAT_SCHEDULE = '{name}'
     FORMAT_WATCHLIST = '{name}'
 
-    WATCH_REMINDER_INTERVAL = 3600
+    WATCH_REMINDER_INTERVAL = 900
 
     def __init__(self, cache = None):
         self.cache = cache
@@ -152,10 +152,12 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if deltat < 0 or deltat > 43200:
                 continue
 
-            if 'last_sent' in v and time.time() - v['last_sent'] < 86400:
+            ep = result._nextepisode.data.id
+
+            if 'last_ep' in v and v['last_ep'] == ep:
                 continue
 
-            v['last_sent'] = time.time()
+            v['last_ep'] = ep
             wrcache = True
 
             e.append((result, deltat))
@@ -164,6 +166,8 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 break
 
         if e:
+            e = sorted(e, key = lambda x: x[1], reverse = False)
+
             user = yield client.find_user(row['user'], row['host'])
             if not user:
                 return
@@ -273,6 +277,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
             return
 
         data = json.loads(row['data'])
+        o = []
 
         for v in data.values():
 
@@ -281,11 +286,19 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if not result:
                 continue
 
+            o.append(result)
+
+        o = sorted(o, key = lambda x: _deltat(x._nextepisode.data.airstamp) if x._nextepisode else sys.maxsize, reverse = False)
+
+        for v in o:
             fmt = client.options.get('watchlist_format')
             if not fmt:
                 fmt = self.FORMAT_WATCHLIST
 
-            client.message(source, result.format(fmt))
+            if v._nextepisode:
+                print(_deltat(v._nextepisode.data.airstamp))
+
+            client.message(source, v.format(fmt))
 
     @pydle.coroutine
     def schedule_wr_users(self, client, nick):
