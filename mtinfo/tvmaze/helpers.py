@@ -13,33 +13,9 @@ from .tvmaze import (
     RESULT_TYPE_SCHEDULE
 )
 from ..misc import strip_tags
+from ..helpers import fmt_time
 
-import datetime, calendar, time
-
-
-def convert_timedelta(seconds):
-    # seconds = seconds
-    d = datetime.datetime(1, 1, 1) + datetime.timedelta(seconds = int(abs(seconds)))
-
-    if seconds < 0:
-        return -d.day + 1, -d.hour, -d.minute, -d.second
-    else:
-        return d.day - 1, d.hour, d.minute, d.second
-
-
-def fmt_time(seconds):
-    td = int(seconds)
-    days, hours, minutes, seconds = convert_timedelta(td)
-
-    o = ''
-    if days != 0:
-        o += '{}d '.format(days)
-
-    if hours != 0:
-        o += '{}h '.format(hours)
-
-    o += '{}m'.format(minutes)
-    return o
+import calendar, time
 
 
 def deltat(airstamp):
@@ -235,7 +211,7 @@ def print_informative(r):
         ))
     elif (r._restype_ == RESULT_TYPE_SCHEDULE):
         print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
-            r.local_airtime_d,
+            r.local_airtime_d ,
             r.show.name,
             r.name,
             r.season, r.number,
