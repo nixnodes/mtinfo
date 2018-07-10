@@ -8,7 +8,7 @@ def run(s):
     a = s.split(' ')
     o = [
         "python",
-        "mtinfo/tvmaze/run.py",
+        p,
         "-d",
         "--cache",
         CACHE_FILE
@@ -18,7 +18,9 @@ def run(s):
     if call(o) != 0:
         raise Exception("Test failed: {}".format(o))
 
+
 try:
+    p = "mtinfo/tvmaze/run.py"
     run('-i 1 -e')
     run('-m game of thrones')
     run('game of thrones')

@@ -68,4 +68,8 @@ def irc():
         TVMazeIRCCP(cache)
     ]
 
-    return run_irc_client(parser, config, cache = cache, cpcs = cpcs)
+    try:
+        return run_irc_client(parser, config, cache = cache, cpcs = cpcs)
+    finally:
+        if cache:
+            cache.close()

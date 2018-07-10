@@ -62,6 +62,7 @@ class GenericShowHelper(ResultBaseHelper):
         'schedule',
         'previousepisode',
         'nextepisode',
+        'nextepisode_utc',
         'name',
         'url',
         'type',
@@ -69,7 +70,8 @@ class GenericShowHelper(ResultBaseHelper):
         'language',
         'summary',
         'episodes',
-        'rating'
+        'rating',
+        'nextepisode_airstamp'
     ]
 
     def format_episode_info(self, d):
@@ -80,7 +82,7 @@ class GenericShowHelper(ResultBaseHelper):
                 d.season,
                 d.number,
                 d.name,
-                stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M")
+                stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z")
             )
         )
 
@@ -124,6 +126,11 @@ class GenericShowHelper(ResultBaseHelper):
             result.data._embedded.nextepisode
         ))
 
+        #if result.data._embedded.nextepisode:
+        #   result._bind_key('nextepisode_airstamp', stamptodt(
+        #        result.data._embedded.nextepisode
+        #    ))
+
         result._bind_key('name', result.data.name)
         result._bind_key('url', result.data.url)
         result._bind_key('type', result.data.type)
@@ -164,7 +171,7 @@ def print_informative(r):
             r.summary
         ))
 
-        #if r.episodes != None:
+        # if r.episodes != None:
         #    for v in r.episodes:
         #        print('    {} | {} ({}x{})'.format(
         #            v.local_airtime,

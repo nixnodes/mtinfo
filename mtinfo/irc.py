@@ -7,6 +7,8 @@ from .logging import Logger
 
 logger = Logger(__name__)
 
+from pydle import connection
+
 
 class Client(pydle.Client):
 
@@ -27,6 +29,7 @@ class Client(pydle.Client):
 
         self.__reconnect_handler = None
         self.__pinger_handle = None
+        self.__tick_handler = None
 
     def register_command_processor(self, cp):
         assert issubclass(cp.__class__, BaseCommandProcessor)
@@ -45,12 +48,46 @@ class Client(pydle.Client):
         self._reconnect_attempts = 0
         if self.PING_INTERVAL > 0:
             self.__do_ping()
+        self.__tick_handler = self.eventloop.schedule_periodically(1, self.__do_tick)
+        self.__run_cpa('on_connect')
+
+    def on_join(self, channel, user):
+        super().on_join(channel, user)
+        self.__run_cpa('on_join', channel, user)
+
+    @pydle.coroutine
+    def __do_tick(self):
+        for v in self.__mt_cpa:
+            try:
+                v.on_tick(self)
+            except BaseException as e:
+                logger.exception(e)
+
+    @pydle.coroutine
+    def __run_cpa(self, f, *args, **kwargs):
+        for v in self.__mt_cpa:
+            try:
+                getattr(v, f)(self, *args, **kwargs)
+            except BaseException as e:
+                logger.exception(e)
 
     def __do_ping(self):
         if self.connected:
             self.rawmsg('PING', str(int(time.time())))
             self.__pinger_handle = self.eventloop.schedule_in(self.PING_INTERVAL, self.__do_ping)
 
+    @pydle.coroutine
+    def find_user_match(self, v, username, hostname):
+        return (v['username'] == username and
+                v['hostname'] == hostname)
+
+    @pydle.coroutine
+    def find_user(self, username, hostname):
+        for v in self.users.values():
+            if (yield self.find_user_match(v, username, hostname)):
+                return v
+
+    @pydle.coroutine
     def on_message(self, source, target, message):
         # self.message(target, message)
 
@@ -90,7 +127,11 @@ class Client(pydle.Client):
             self.eventloop.unschedule(self.__pinger_handle)
             self.__pinger_handle = None
 
-        if not self._reconnect_handler:
+        if self.__tick_handler != None:
+            self.eventloop.unschedule(self.__tick_handler)
+            self.__tick_handler = None
+
+        if self.__reconnect_handler == None:
             if not expected:
                 # Unexpected disconnect. Reconnect?
                 if self.RECONNECT_ON_ERROR and (self.RECONNECT_MAX_ATTEMPTS is None or self._reconnect_attempts < self.RECONNECT_MAX_ATTEMPTS):
@@ -104,34 +145,55 @@ class Client(pydle.Client):
                         self.logger.error('Unexpected disconnect. Attempting to reconnect.')
 
                     def do_reconnect(self):
-                        self._reconnect_handler = None
+                        self.__reconnect_handler = None
                         if not self.connected:
                             self.connect(reconnect = True)
 
                     # Wait and reconnect.
-                    self._reconnect_handler = self.eventloop.schedule_in(delay, do_reconnect, self)
+                    self.__reconnect_handler = self.eventloop.schedule_in(delay, do_reconnect, self)
                 else:
                     self.logger.error('Unexpected disconnect. Giving up.')
 
 
 class BaseCommandProcessor():
 
+    @pydle.coroutine
     def run(self, client, q, c, source, target):
         f = getattr(self, 'cmd_' + q, None)
         if f == None or not callable(f):
             return False
 
         try:
-            f(client, source, target, *c)
+            yield f(client, source, target, *c)
         except BaseException as e:
             logger.exception('Exception while executing command: {}'.format(e))
 
         return True
 
+    @pydle.coroutine
+    def on_tick(self, client):
+        pass
+
+    @pydle.coroutine
+    def on_join(self, client, channel, user):
+        pass
+
+    @pydle.coroutine
+    def on_connect(self, client):
+        pass
+
 
 def run_client(parser, config, cache = None, cpcs = None):
 
     assert cpcs and isinstance(cpcs, list)
+
+    throttle_threshold = config.get('irc', 'throttle_threshold', fallback = None)
+    if throttle_threshold != None:
+        connection.MESSAGE_THROTTLE_TRESHOLD = int(throttle_threshold)
+
+    throttle_delay = config.get('irc', 'throttle_delay', fallback = None)
+    if throttle_delay != None:
+        connection.MESSAGE_THROTTLE_DELAY = int(throttle_delay)
 
     server = config.get('irc', 'server')
 
@@ -160,5 +222,8 @@ def run_client(parser, config, cache = None, cpcs = None):
         channels = channels
     )
 
-    client.handle_forever()
+    try:
+        client.handle_forever()
+    except (KeyboardInterrupt, SystemExit):
+        client.disconnect()
 

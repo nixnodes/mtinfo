@@ -26,7 +26,7 @@ class IStor:
     def __init__(self, path, schema):
 
         self._path = path
-        self._conn = conn = sqlite3.connect(self._path)
+        self.conn = conn = sqlite3.connect(self._path, check_same_thread = False)
         self._schema = schema
 
         self.data = DStorBase()
@@ -41,7 +41,7 @@ class IStor:
                     s += ','
 
                 if 'd' in d:
-                    defstr = 'NOT NULL DEFAULT {}'.format(d['d'])
+                    defstr = ' DEFAULT {}'.format(d['d'])
                 else:
                     defstr = ''
 
@@ -84,53 +84,57 @@ class IStor:
         self._lock = threading.RLock()
 
     def close(self):
-        self._conn.commit()
-        self._conn.close()
+        with self._lock:
+            self.conn.commit()
+            self.conn.close()
 
     def commit(self):
-        self._conn.commit()
+        with self._lock:
+            self.conn.commit()
 
     def get(self, table, k, v, sort = None, order = None):
 
-        sitem = self.schema_find_item(table, k)
-        if not sitem:
-            return []
+        with self._lock:
+            sitem = self.schema_find_item(table, k)
+            if not sitem:
+                return []
 
-        t = sitem['t']
+            t = sitem['t']
 
-        if t == 'integer':
-            f = 'SELECT * FROM {} WHERE {} = ?'
-        elif t == 'text':
-            f = 'SELECT * FROM {} WHERE {} LIKE ?'
-            v = '%'.join(v.split(' ')) + '%'
-        else:
-            raise IStorException('Unknown type')
+            if t == 'integer':
+                f = 'SELECT * FROM {} WHERE {} = ?'
+            elif t == 'text':
+                f = 'SELECT * FROM {} WHERE {} LIKE ?'
+                v = '%'.join(v.split(' ')) + '%'
+            else:
+                raise IStorException('Unknown type')
 
-        if sort:
-            f += ' ORDER BY {}'.format(sort)
-            if order:
-                f += ' ' + order
+            if sort:
+                f += ' ORDER BY {}'.format(sort)
+                if order:
+                    f += ' ' + order
 
-        c = self._conn.cursor()
+            c = self.conn.cursor()
 
-        outstr = f.format(
-            table,
-            k
-        )
+            outstr = f.format(
+                table,
+                k
+            )
 
-        return c.execute (
-            outstr,
-            (v,)
-        ).fetchall()
+            return c.execute (
+                outstr,
+                (v,)
+            ).fetchall()
 
     def getall(self, table, sort = None, order = None):
-        f = "SELECT * FROM {}".format(table)
-        if sort:
-            f += ' ORDER BY {}'.format(sort)
-            if order:
-                f += ' ' + order
+        with self._lock:
+            f = "SELECT * FROM {}".format(table)
+            if sort:
+                f += ' ORDER BY {}'.format(sort)
+                if order:
+                    f += ' ' + order
 
-        return self._conn.cursor().execute (f)
+            return self.conn.cursor().execute (f)
 
     def getone(self, *args):
         r = self.get(*args)
@@ -146,17 +150,18 @@ class IStor:
 
             c = ''
             v = ''
+            w = 0
 
             out = []
 
-            for i, d in enumerate(schema):
+            for d in schema:
 
                 k = d['k']
 
                 if not k in r:
                     continue
 
-                if i > 0:
+                if w > 0:
                     c += ','
                     v += ','
 
@@ -167,6 +172,8 @@ class IStor:
                 else:
                     out.append(r[k])
 
+                w += 1
+
                 v += '?'
 
             if not out:
@@ -176,7 +183,7 @@ class IStor:
                 table, c, v
             )
 
-            c = self._conn.cursor()
+            c = self.conn.cursor()
             c.execute (
                 outstr,
                 tuple(out)
@@ -186,7 +193,7 @@ class IStor:
         with self._lock:
             index = self.schema_find_f(table, 'index')['k']
 
-            conn = self._conn
+            conn = self.conn
             c = conn.cursor()
 
             outstr = 'DELETE FROM {} WHERE {} = ?'.format(

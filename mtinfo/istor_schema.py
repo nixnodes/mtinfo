@@ -1,11 +1,5 @@
 
-__data = {
-    'irc': [
-        { 'k' : 'id', 't': 'integer', 'f': 'index'},
-        { 'k' : 'name', 't': 'text', 'f': 'text'},
-        { 'k' : 'type', 't': 'text', 'f': 'text'},
-    ],
-}
+__data = {}
 
 
 def update(d):

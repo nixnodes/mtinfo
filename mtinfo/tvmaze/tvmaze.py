@@ -387,4 +387,4 @@ class PeopleContext(TBase):
 
 
 def stamptodt(ts):
-    return datetime.datetime.strptime(ts[:-3] + ts[-2:], "%Y-%m-%dT%H:%M:%S%z")
+    return datetime.datetime.strptime(ts[:-6] + ' ' + ts[-6:-3] + ts[-2:], "%Y-%m-%dT%H:%M:%S %z")
