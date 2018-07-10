@@ -174,14 +174,6 @@ class GenericShowHelper(ResultBaseHelper):
                     helper = GenericEpisodeHelper
                 )
             )
-        else:
-            result._bind_key('_nextepisode', 
-                Result(
-                    {},
-                    RESULT_TYPE_EPISODE,
-                    helper = GenericEpisodeHelper
-                )
-            )
 
         # if result.data._embedded.nextepisode:
         #   result._bind_key('nextepisode_airstamp', stamptodt(

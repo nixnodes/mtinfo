@@ -8,14 +8,17 @@ from .tvmaze import (
 
     ResultMulti,
 
-    stamptodt
 )
-from .helpers import GenericShowHelper, GenericEpisodeHelper, fmt_time, deltat as _deltat
+from .helpers import (
+    GenericShowHelper, 
+    GenericEpisodeHelper, 
+    deltat as _deltat
+)
 from ..logging import Logger
 
 from ..istor_schema import update as schema_update
 
-import json, time, calendar
+import json, time
 import pydle
 
 logger = Logger(__name__)
@@ -38,6 +41,7 @@ executor = concurrent.futures.ThreadPoolExecutor(8)
 class TVMazeIRCCP(BaseCommandProcessor):
 
     FORMAT_SHOW = '{name} / {rating}'
+    FORMAT_WATCH_REMINDER = '{name} | {nextepisode}'
     FORMAT_SCHEDULE = '{name}'
     FORMAT_WATCHLIST = '{name}'
 
@@ -140,10 +144,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
             result = yield self.lookup_async(self.get_show_by_id, v['id'])
 
-            if not result or not result.nextepisode:
+            if not result or not result._nextepisode:
                 continue
 
-            deltat = _deltat(result.data._embedded.nextepisode.airstamp)
+            deltat = _deltat(result._nextepisode.data.airstamp)
 
             if deltat < 0 or deltat > 43200:
                 continue
@@ -165,15 +169,16 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 return
             nick = user['nickname']
 
+            fmt = client.options.get('watch_reminder_format')
+            if not fmt:
+                fmt = self.FORMAT_WATCH_REMINDER
+
             client.message(nick, ':: Watch reminder ::')
             for v in e:
                 result = v[0]
                 deltat = v[1]
-                client.message(nick, ':: {} :: {} ({})'.format(
-                    result.name,
-                    result.nextepisode,
-                    fmt_time(deltat)
-                ))
+
+                client.message(nick, result.format(fmt))
 
             row['data'] = json.dumps(data, ensure_ascii = False)
             wrcache = True
