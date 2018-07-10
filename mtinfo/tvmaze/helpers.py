@@ -76,7 +76,7 @@ class GenericEpisodeHelper(ResultBaseHelper):
         if result.data.airstamp:
             result._bind_key('local_airtime', stamptodt(result.data.airstamp).strftime("%d-%m-%Y at %H:%M"))
             result._bind_key('eta', fmt_time(deltat(result.data.airstamp)))
-            result._bind_key('local_airtime_d', '{} (in {})'.format(result.local_airtime, result.eta))
+            result._bind_key('local_airtime_d', '{} ({})'.format(result.local_airtime, result.eta))
 
         if result.data.summary:
             result._bind_key(
@@ -97,6 +97,7 @@ class GenericShowHelper(ResultBaseHelper):
         'schedule',
         'previousepisode',
         'nextepisode',
+        '_nextepisode',
         'nextepisode_utc',
         'name',
         'url',
@@ -118,7 +119,7 @@ class GenericShowHelper(ResultBaseHelper):
                 d.season,
                 d.number,
                 d.name,
-                '{} (in {})'.format(
+                '{} ({})'.format(
                     stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z"),
                     fmt_time(deltat(d.airstamp))
                 )
@@ -164,6 +165,23 @@ class GenericShowHelper(ResultBaseHelper):
         result._bind_key('nextepisode', self.format_episode_info(
             result.data._embedded.nextepisode
         ))
+
+        if result.data._embedded.nextepisode:
+            result._bind_key('_nextepisode',
+                Result(
+                    result.data._embedded.nextepisode._rawdata_,
+                    RESULT_TYPE_EPISODE,
+                    helper = GenericEpisodeHelper
+                )
+            )
+        else:
+            result._bind_key('_nextepisode', 
+                Result(
+                    {},
+                    RESULT_TYPE_EPISODE,
+                    helper = GenericEpisodeHelper
+                )
+            )
 
         # if result.data._embedded.nextepisode:
         #   result._bind_key('nextepisode_airstamp', stamptodt(

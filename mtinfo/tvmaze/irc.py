@@ -10,7 +10,7 @@ from .tvmaze import (
 
     stamptodt
 )
-from .helpers import GenericShowHelper, GenericEpisodeHelper, fmt_time
+from .helpers import GenericShowHelper, GenericEpisodeHelper, fmt_time, deltat as _deltat
 from ..logging import Logger
 
 from ..istor_schema import update as schema_update
@@ -39,6 +39,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
     FORMAT_SHOW = '{name} / {rating}'
     FORMAT_SCHEDULE = '{name}'
+    FORMAT_WATCHLIST = '{name}'
 
     WATCH_REMINDER_INTERVAL = 3600
 
@@ -142,7 +143,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if not result or not result.nextepisode:
                 continue
 
-            deltat = calendar.timegm(stamptodt(result.data._embedded.nextepisode.airstamp).utctimetuple()) - time.time()
+            deltat = _deltat(result.data._embedded.nextepisode.airstamp)
 
             if deltat < 0 or deltat > 43200:
                 continue
@@ -168,7 +169,11 @@ class TVMazeIRCCP(BaseCommandProcessor):
             for v in e:
                 result = v[0]
                 deltat = v[1]
-                client.message(nick, ':: {} :: {} (in {} hrs)'.format(result.name, result.nextepisode, round(deltat / 3600, 1)))
+                client.message(nick, ':: {} :: {} ({})'.format(
+                    result.name,
+                    result.nextepisode,
+                    fmt_time(deltat)
+                ))
 
             row['data'] = json.dumps(data, ensure_ascii = False)
             wrcache = True
@@ -271,13 +276,11 @@ class TVMazeIRCCP(BaseCommandProcessor):
             if not result:
                 continue
 
-            o = ':: {}'.format(result.name)
+            fmt = client.options.get('watchlist_format')
+            if not fmt:
+                fmt = self.FORMAT_WATCHLIST
 
-            if result.nextepisode:
-                deltat = calendar.timegm(stamptodt(result.data._embedded.nextepisode.airstamp).utctimetuple()) - time.time()
-                o += ' | Next: {} (in {})'.format(result.nextepisode, fmt_time(deltat))
-
-            client.message(source, o)
+            client.message(source, result.format(fmt))
 
     @pydle.coroutine
     def schedule_wr_users(self, client, nick):
