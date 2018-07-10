@@ -150,7 +150,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
             result = yield self.lookup_async(
                 self.get_show_by_id,
                 v['id'],
-                cache_expire_time = 0
+                cache_expire_time = 300
             )
 
             if not result or not result._nextepisode:
