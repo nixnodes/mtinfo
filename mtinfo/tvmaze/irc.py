@@ -278,7 +278,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
         client.message(source, 'Removed \'{}\' from watchlist'.format(result.name))
 
     @pydle.coroutine
-    def watchlist_list(self, client, source, nick):
+    def watchlist_list(self, client, source, nick, list_all = True):
         user = client.users[nick]
 
         row = self.cache_get_by_user('irc_watchlist', user['username'], user['hostname']).fetchone()
@@ -294,6 +294,10 @@ class TVMazeIRCCP(BaseCommandProcessor):
             result = yield self.lookup_async(self.get_show_by_id, v['id'])
 
             if not result:
+                continue
+
+            if (list_all == False and
+                not result._nextepisode):
                 continue
 
             o.append(result)
@@ -360,7 +364,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
     def cmd_watch(self, client, source, nick, *args):
 
         if not args or not args[0]:
-            self.watchlist_list(client, source, nick)
+            self.watchlist_list(client, source, nick, list_all = False)
         else:
             c = args[0]
 
