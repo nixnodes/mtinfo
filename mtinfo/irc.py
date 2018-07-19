@@ -225,5 +225,11 @@ def run_client(parser, config, cache = None, cpcs = None):
     try:
         client.handle_forever()
     except (KeyboardInterrupt, SystemExit):
-        client.disconnect()
+        pass
+    finally:
+        try:
+            client.disconnect()
+        except BaseException as e:
+            logger.exception(e)
 
+    logger.debug('IRC client shutting down')

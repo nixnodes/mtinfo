@@ -40,6 +40,10 @@ schema_update({
 executor = concurrent.futures.ThreadPoolExecutor(8)
 
 
+class WatchlistEmptyException(Exception):
+    pass
+
+
 class TVMazeIRCCP(BaseCommandProcessor):
 
     FORMAT_SHOW = '{name} / {rating}'
@@ -48,6 +52,8 @@ class TVMazeIRCCP(BaseCommandProcessor):
     FORMAT_WATCHLIST = '{name}'
 
     WATCH_REMINDER_INTERVAL = 900
+    WATCH_REMINDER_CACHE_EXPIRE_TIME = 300
+    WATCH_REMINDER_MIN_DELTAT = 21600
 
     def __init__(self, cache = None):
         self.cache = cache
@@ -111,14 +117,13 @@ class TVMazeIRCCP(BaseCommandProcessor):
             return (yield executor.submit(self.get_show_by_name, ' '.join(args))).result()
 
     def cache_get_by_user(self, table, username, hostname):
-        c = self.cache.conn.cursor()
+        with self.cache:
+            c = self.cache.conn.cursor()
 
-        outstr = 'SELECT * FROM {} WHERE host = ? AND user = ?'.format(table)
-
-        return c.execute (
-            outstr,
-            (hostname, username)
-        )
+            return c.execute (
+                'SELECT * FROM {} WHERE host = ? AND user = ?'.format(table),
+                (hostname, username)
+            )
 
     @pydle.coroutine
     def lookup_async(self, f, *args, **kwargs):
@@ -150,7 +155,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
             result = yield self.lookup_async(
                 self.get_show_by_id,
                 v['id'],
-                cache_expire_time = 300
+                cache_expire_time = self.WATCH_REMINDER_CACHE_EXPIRE_TIME
             )
 
             if not result or not result._nextepisode:
@@ -158,7 +163,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
             deltat = _deltat(result._nextepisode.data.airstamp)
 
-            if deltat < 0 or deltat > 43200:
+            if deltat < 0 or deltat > self.WATCH_REMINDER_MIN_DELTAT:
                 continue
 
             ep = result._nextepisode.data.id
@@ -283,34 +288,58 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
         row = self.cache_get_by_user('irc_watchlist', user['username'], user['hostname']).fetchone()
 
-        if not row:
+        try:
+            if not row:
+                raise WatchlistEmptyException()
+
+            data = json.loads(row['data'])
+
+            if not data:
+                raise WatchlistEmptyException()
+
+            o = []
+
+            for v in data.values():
+
+                result = yield self.lookup_async(self.get_show_by_id, v['id'])
+
+                if not result:
+                    continue
+
+                if (list_all == False and
+                    not result._nextepisode):
+                    continue
+
+                o.append(result)
+
+            if not o:
+                raise WatchlistEmptyException()
+
+            o = sorted(o, key = lambda x: _deltat(x._nextepisode.data.airstamp) if x._nextepisode else sys.maxsize, reverse = False)
+
+            for v in o:
+                fmt = client.options.get(
+                    'watchlist_format',
+                    self.FORMAT_WATCHLIST
+                )
+
+                client.message(source, v.format(fmt))
+
+        except WatchlistEmptyException:
+            client.message(source, 'No shows found matching the search criteria')
             return
 
-        data = json.loads(row['data'])
-        o = []
+    @pydle.coroutine
+    def watchlist_clear(self, client, source, nick):
+        user = client.users[nick]
 
-        for v in data.values():
+        with self.cache:
+            c = self.cache.conn.cursor()
+            c.execute(
+                'DELETE FROM irc_watchlist WHERE host = ? AND user = ?',
+                (user['hostname'], user['username']))
 
-            result = yield self.lookup_async(self.get_show_by_id, v['id'])
-
-            if not result:
-                continue
-
-            if (list_all == False and
-                not result._nextepisode):
-                continue
-
-            o.append(result)
-
-        o = sorted(o, key = lambda x: _deltat(x._nextepisode.data.airstamp) if x._nextepisode else sys.maxsize, reverse = False)
-
-        for v in o:
-            fmt = client.options.get(
-                'watchlist_format',
-                self.FORMAT_WATCHLIST
-            )
-
-            client.message(source, v.format(fmt))
+        client.message(source, 'All shows removed from watchlist')
 
     @pydle.coroutine
     def schedule_wr_users(self, client, nick):
@@ -336,7 +365,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 client.eventloop.unschedule(self.__wrsched_handle)
                 self.__wrsched_handle = None
 
-            self.__wrsched_handle = client.eventloop.schedule_in(3, self.schedule_wr_users, client, nick)
+            self.__wrsched_handle = client.eventloop.schedule_in(15, self.schedule_wr_users, client, nick)
 
         else:
             user = client.users[nick]
@@ -374,6 +403,8 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 yield self.watchlist_remove(client, source, nick, *args[1:])
             elif c == 'list':
                 yield self.watchlist_list(client, source, nick)
+            elif c == 'clear':
+                yield self.watchlist_clear(client, source, nick)
 
     @pydle.coroutine
     def cmd_today(self, client, source, nick, *args):

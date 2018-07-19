@@ -83,6 +83,12 @@ class IStor:
 
         self._lock = threading.RLock()
 
+    def __enter__(self):
+        self._lock.acquire()
+
+    def __exit__(self, *a):
+        self._lock.release()
+
     def close(self):
         with self._lock:
             self.conn.commit()

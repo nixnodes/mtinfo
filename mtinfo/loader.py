@@ -58,7 +58,13 @@ def load():
 
 
 def tvmaze():
-    return tvmaze_run(*load())
+    parser, config, cache = load()
+
+    try:
+        return tvmaze_run(parser, config, cache)
+    finally:
+        if cache:
+            cache.close()
 
 
 def irc():
