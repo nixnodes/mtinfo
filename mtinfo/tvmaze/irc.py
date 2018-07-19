@@ -93,7 +93,8 @@ class TVMazeIRCCP(BaseCommandProcessor):
     @pydle.coroutine
     def get_schedule(self):
         return ScheduleContext(
-            helper = GenericEpisodeHelper
+            helper = GenericEpisodeHelper,
+            rlc = self.__rlc
         ).query(None)
 
     @pydle.coroutine
