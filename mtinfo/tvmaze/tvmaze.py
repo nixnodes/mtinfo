@@ -150,11 +150,15 @@ class ResultMulti():
         )
 
 
-class BaseNotFoundException(Exception):
+class BaseHTTPException(Exception):
     pass
 
 
-class TBaseHTTPError(Exception):
+class BaseNotFoundException(BaseHTTPException):
+    pass
+
+
+class TBaseHTTPError(BaseHTTPException):
 
     def __init__(self, msg, code):
         Exception.__init__(self, msg)

@@ -8,7 +8,9 @@ from .tvmaze import (
 
     ResultMulti,
 
-    rlst
+    rlst,
+
+    BaseHTTPException,
 
 )
 from .helpers import (
@@ -104,18 +106,22 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
         f = args[0]
 
-        if len(args) > 1 and f[0] == '-':
+        try:
+            if len(args) > 1 and f[0] == '-':
 
-            q = args[1]
-            m = f[1]
+                q = args[1]
+                m = f[1]
 
-            if m == 'i':
-                return (yield executor.submit(self.get_show_by_id, q)).result()
+                if m == 'i':
+                    return (yield executor.submit(self.get_show_by_id, q)).result()
+                else:
+                    raise Exception('Unknown flag {} from {}'.format(m, source))
+
             else:
-                raise Exception('Unknown flag {} from {}'.format(m, source))
-
-        else:
-            return (yield executor.submit(self.get_show_by_name, ' '.join(args))).result()
+                return (yield executor.submit(self.get_show_by_name, ' '.join(args))).result()
+        except BaseHTTPException as e:
+            client.message(source, str(e))
+            raise
 
     def cache_get_by_user(self, table, username, hostname):
         with self.cache:
@@ -285,6 +291,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
     @pydle.coroutine
     def watchlist_list(self, client, source, nick, list_all = True):
+
         user = client.users[nick]
 
         row = self.cache_get_by_user('irc_watchlist', user['username'], user['hostname']).fetchone()
