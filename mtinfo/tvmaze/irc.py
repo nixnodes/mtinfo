@@ -70,7 +70,6 @@ class TVMazeIRCCP(BaseCommandProcessor):
             mode = 'tvmaze',
             embed = [
                 'nextepisode',
-                'previousepisode'
             ],
             helper = GenericShowHelper,
             cache = self.cache,
@@ -84,7 +83,6 @@ class TVMazeIRCCP(BaseCommandProcessor):
             mode = SEARCH_MODE_SINGLE,
             embed = [
                 'nextepisode',
-                'previousepisode'
             ],
             helper = GenericShowHelper,
             cache = self.cache,
