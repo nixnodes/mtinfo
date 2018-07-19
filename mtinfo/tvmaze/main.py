@@ -225,8 +225,5 @@ def main(parser, config, cache = None):
     except BaseException as e:
         logger.exception(e)
         return 1
-    finally:
-        if cache:
-            cache.close()
 
     return 0

@@ -327,7 +327,6 @@ class TVMazeIRCCP(BaseCommandProcessor):
 
         except WatchlistEmptyException:
             client.message(source, 'No shows found matching the search criteria')
-            return
 
     @pydle.coroutine
     def watchlist_clear(self, client, source, nick):
