@@ -83,7 +83,9 @@ class GenericShowHelper(ResultBaseHelper):
         'summary',
         'episodes',
         'rating',
-        'nextepisode_airstamp'
+        'nextepisode_airstamp',
+        'nextepisode_airtime',
+        'nextepisode_deltat'
     ]
 
     def format_episode_info(self, d):
@@ -92,8 +94,8 @@ class GenericShowHelper(ResultBaseHelper):
 
         return (
             "{}x{} {} on {}".format(
-                d.season,
                 d.number,
+                d.season,
                 d.name,
                 '{} ({})'.format(
                     stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z"),
@@ -151,10 +153,13 @@ class GenericShowHelper(ResultBaseHelper):
                 )
             )
 
-        # if result.data._embedded.nextepisode:
-        #   result._bind_key('nextepisode_airstamp', stamptodt(
-        #        result.data._embedded.nextepisode
-        #    ))
+            result._bind_key('nextepisode_airtime',
+                stamptodt(result.data._embedded.nextepisode.airstamp).strftime("%d-%m-%Y at %H:%M %Z")
+            )
+
+            result._bind_key('nextepisode_deltat',
+                fmt_time(deltat(result.data._embedded.nextepisode.airstamp))
+            )
 
         result._bind_key('name', result.data.name)
         result._bind_key('url', result.data.url)
