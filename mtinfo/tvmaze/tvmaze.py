@@ -1,4 +1,4 @@
-import requests, json, time, datetime
+import requests, json, time, datetime, calendar
 
 from ..cache import IStor
 from ..logging import Logger
@@ -418,6 +418,21 @@ class ScheduleContext(TBase):
     URL = BASEURL + "/schedule"
     restype = RESULT_TYPE_SCHEDULE
     rclass = ResultMulti
+
+    def __init__(self, *args, **kwargs):
+        TBase.__init__(self, *args, **kwargs)
+
+    def query(self, string, time_offset = 0):
+
+        self.URL = BASEURL + '/schedule?date={}'.format(
+            datetime.datetime.fromtimestamp(
+                calendar.timegm(
+                    datetime.datetime.utcnow().utctimetuple()
+                ) + time_offset
+            ).strftime('%Y-%m-%d')
+        )
+
+        return TBase.query(self, string)
 
 
 class PeopleContext(TBase):

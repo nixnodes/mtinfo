@@ -91,11 +91,11 @@ class TVMazeIRCCP(BaseCommandProcessor):
         ).query(q)
 
     @pydle.coroutine
-    def get_schedule(self):
+    def get_schedule(self, time_offset):
         return ScheduleContext(
             helper = GenericEpisodeHelper,
             rlc = self.__rlc
-        ).query(None)
+        ).query(None, time_offset)
 
     @pydle.coroutine
     def get_show(self, client, source, *args):
@@ -412,9 +412,8 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 yield self.watchlist_clear(client, source, nick)
 
     @pydle.coroutine
-    def cmd_today(self, client, source, nick, *args):
-
-        data = (yield executor.submit(self.get_schedule)).result()
+    def fetch_schedule(self, client, source, time_offset):
+        data = (yield executor.submit(self.get_schedule, time_offset)).result()
 
         for v in data:
             fmt = client.options.get(
@@ -427,3 +426,16 @@ class TVMazeIRCCP(BaseCommandProcessor):
                 v.format(fmt)
             )
 
+    @pydle.coroutine
+    def cmd_today(self, client, source, nick, *args):
+        yield self.fetch_schedule(client, source, 0)
+
+    
+    @pydle.coroutine
+    def cmd_tommorow(self, client, source, nick, *args):
+        yield self.fetch_schedule(client, source, 86400)
+        
+    
+    @pydle.coroutine
+    def cmd_yesterday(self, client, source, nick, *args):
+        yield self.fetch_schedule(client, source, -86400)

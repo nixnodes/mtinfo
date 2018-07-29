@@ -93,9 +93,9 @@ class GenericShowHelper(ResultBaseHelper):
             return d
 
         return (
-            "{}x{} {} on {}".format(
-                d.number,
+            "S{}E{} {} on {}".format(
                 d.season,
+                d.number,
                 d.name,
                 '{} ({})'.format(
                     stamptodt(d.airstamp).strftime("%d-%m-%Y at %H:%M %Z"),
@@ -215,7 +215,7 @@ def print_informative(r):
             r.data.person.url
         ))
     elif (r._restype_ == RESULT_TYPE_SCHEDULE):
-        print('{} | {} - {} ({}x{}) - [{} - {}] - {}min | {}'.format(
+        print('{} | {} - {} (S{}E{}) - [{} - {}] - {}min | {}'.format(
             r.local_airtime_d ,
             r.show.name,
             r.name,
