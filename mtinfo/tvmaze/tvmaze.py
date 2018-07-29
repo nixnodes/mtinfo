@@ -425,7 +425,7 @@ class ScheduleContext(TBase):
     def query(self, string, time_offset = 0):
 
         self.URL = BASEURL + '/schedule?date={}'.format(
-            datetime.datetime.fromtimestamp(
+            datetime.datetime.utcfromtimestamp(
                 calendar.timegm(
                     datetime.datetime.utcnow().utctimetuple()
                 ) + time_offset
