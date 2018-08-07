@@ -5,6 +5,7 @@ python:
   - "3.5"
   - "3.6"
 install:
+  - pip install https://github.com/nixnodes/pydle/archive/master.zip
   - pip install .
 # command to run tests
 script: python runtests.py
