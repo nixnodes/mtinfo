@@ -76,7 +76,7 @@ def do_query(context, q = None, machine = False, fmt = None, **kwargs):
     _do_print(r, machine, fmt)
 
 
-def lookup_show(a = None, embed = None, *args, **kwargs):
+def lookup_show(*args, a = None, embed = None, **kwargs):
 
     e = [
         'nextepisode',

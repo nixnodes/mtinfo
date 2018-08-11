@@ -16,7 +16,7 @@ class Client(pydle.Client):
     MT_DELIMITERS = '.'
     PING_INTERVAL = 90
 
-    def __init__(self, nickname, options = None, *args, **kwargs):
+    def __init__(self, nickname, *args, options = None, **kwargs):
 
         if options != None:
             assert isinstance(options, dict)
