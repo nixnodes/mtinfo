@@ -22,7 +22,7 @@ from .tvmaze import (
     SEARCH_MODE_MULTI,
 
     ResultJSONEncoder,
-    
+
     rlst
 
 )
@@ -76,7 +76,7 @@ def do_query(context, q = None, machine = False, fmt = None, **kwargs):
     _do_print(r, machine, fmt)
 
 
-def lookup_show(*args, a = None, embed = None, **kwargs):
+def lookup_show(a = None, embed = None, *args, **kwargs):
 
     e = [
         'nextepisode',
@@ -152,9 +152,7 @@ def _invoke_search(qs, a, **kwargs):
 
         sr = 0
 
-       
         _rlst = rlst(a.get('rate_limit'))
-
 
         def procline(l):
             l = l.rstrip()

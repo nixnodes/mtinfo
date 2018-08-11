@@ -16,12 +16,12 @@ class Client(pydle.Client):
     MT_DELIMITERS = '.'
     PING_INTERVAL = 90
 
-    def __init__(self, *args, options = None, **kwargs):
+    def __init__(self, nickname, options = None, *args, **kwargs):
 
         if options != None:
             assert isinstance(options, dict)
 
-        super(Client, self).__init__(*args, **kwargs)
+        super(Client, self).__init__(nickname, *args, **kwargs)
 
         self.options = DStorBase(options)
 
@@ -30,6 +30,8 @@ class Client(pydle.Client):
         self.__reconnect_handler = None
         self.__pinger_handle = None
         self.__tick_handler = None
+        self.__watchdog_handler = None
+        self.__nickname = nickname
 
     def register_command_processor(self, cp):
         assert issubclass(cp.__class__, BaseCommandProcessor)
@@ -49,6 +51,7 @@ class Client(pydle.Client):
         if self.PING_INTERVAL > 0:
             self.__do_ping()
         self.__tick_handler = self.eventloop.schedule_periodically(1, self.__do_tick)
+        self.__watchdog_handler = self.eventloop.schedule_periodically(5, self.__do_watchdog)
         self.__run_cpa('on_connect')
 
     def on_join(self, channel, user):
@@ -62,6 +65,11 @@ class Client(pydle.Client):
                 v.on_tick(self)
             except BaseException as e:
                 logger.exception(e)
+
+    @pydle.coroutine
+    def __do_watchdog(self):
+        if self.__nickname != self.nickname:
+            self.set_nickname(self.__nickname)
 
     @pydle.coroutine
     def __run_cpa(self, f, *args, **kwargs):
@@ -130,6 +138,10 @@ class Client(pydle.Client):
         if self.__tick_handler != None:
             self.eventloop.unschedule(self.__tick_handler)
             self.__tick_handler = None
+
+        if self.__watchdog_handler != None:
+            self.eventloop.unschedule(self.__watchdog_handler)
+            self.__watchdog_handler = None
 
         if self.__reconnect_handler == None:
             if not expected:
