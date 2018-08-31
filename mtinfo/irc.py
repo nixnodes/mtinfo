@@ -1,4 +1,3 @@
-
 import time
 import pydle
 
@@ -145,9 +144,7 @@ class Client(pydle.Client):
 
         if self.__reconnect_handler == None:
             if not expected:
-                # Unexpected disconnect. Reconnect?
                 if self.RECONNECT_ON_ERROR and (self.RECONNECT_MAX_ATTEMPTS is None or self._reconnect_attempts < self.RECONNECT_MAX_ATTEMPTS):
-                    # Calculate reconnect delay.
                     delay = 5
                     self._reconnect_attempts += 1
 

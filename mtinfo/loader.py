@@ -1,18 +1,11 @@
+import argparse, logging
+from configparser import ConfigParser
 
 from .arg import arg_parse_common
 from .data import DStorBase
-
-import argparse, logging
-
-from .tvmaze.main import main as tvmaze_run
-from .irc import run_client as run_irc_client
 from .istor_schema import get as schema_get
 from .cache import IStor
-
-from .tvmaze.irc import TVMazeIRCCP
-
 from .logging import set_loglevel, Logger
-from configparser import ConfigParser
 
 CONFIG_FILE = '/etc/mtinfo.conf'
 
@@ -58,6 +51,9 @@ def load():
 
 
 def tvmaze():
+
+    from .tvmaze.main import main as tvmaze_run
+
     parser, config, cache = load()
 
     try:
@@ -68,6 +64,10 @@ def tvmaze():
 
 
 def irc():
+
+    from .irc import run_client as run_irc_client
+    from .tvmaze.irc import TVMazeIRCCP
+
     parser, config, cache = load()
 
     cpcs = [

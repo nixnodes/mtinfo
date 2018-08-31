@@ -15,11 +15,11 @@ from .tvmaze import (
 from ..misc import strip_tags
 from ..helpers import fmt_time
 
-import calendar, time
+import calendar, datetime
 
 
 def deltat(airstamp):
-    return calendar.timegm(stamptodt(airstamp).utctimetuple()) - time.time()
+    return calendar.timegm(stamptodt(airstamp).utctimetuple()) - calendar.timegm(datetime.datetime.utcnow().utctimetuple())
 
 
 class GenericEpisodeHelper(ResultBaseHelper):

@@ -398,7 +398,7 @@ class TVMazeIRCCP(BaseCommandProcessor):
     def cmd_watch(self, client, source, nick, *args):
 
         if not args or not args[0]:
-            self.watchlist_list(client, source, nick, list_all = False)
+            yield self.watchlist_list(client, source, nick, list_all = False)
         else:
             c = args[0]
 
